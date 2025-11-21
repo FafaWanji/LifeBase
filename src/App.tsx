@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, createContext, useContext, ReactNode } from 'react';
+import React, { useState, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
 import { 
   StickyNote, 
   List, 
