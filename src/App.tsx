@@ -505,7 +505,52 @@ const NotesView: React.FC = () => {
         })}
       </div>
 
-      {/* Label Manager Modal */}
+      {/* Create Note Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Neue Notiz">
+        <div className="space-y-4">
+          <Input 
+            value={currentNote.title} 
+            onChange={(v) => setCurrentNote({...currentNote, title: v})} 
+            placeholder="Titel (z.B. Einkaufsliste)" 
+          />
+          <textarea
+            value={currentNote.content}
+            onChange={(e) => setCurrentNote({...currentNote, content: e.target.value})}
+            placeholder="Schreibe deine Gedanken..."
+            className={`w-full bg-transparent border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 h-32 resize-none ${useTheme().bgInput} ${useTheme().border} ${useTheme().textMain} ${useTheme().accent.ring}`}
+          />
+
+          {/* Label Selector */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+                <span className={`text-xs font-bold uppercase ${textSec}`}>Label wählen</span>
+                <button onClick={() => { setIsLabelManagerOpen(true); }} className={`text-xs ${accent.text} hover:underline`}>
+                    Bearbeiten
+                </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+                {labels.map(label => (
+                    <button
+                        key={label.id}
+                        onClick={() => setCurrentNote({...currentNote, labelId: label.id})}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${
+                            currentNote.labelId === label.id 
+                            ? `${label.color} ${label.textColor} border-white/20 shadow-md` 
+                            : `${useTheme().bgInput} ${textSec} border-transparent`
+                        }`}
+                    >
+                        {label.name}
+                    </button>
+                ))}
+            </div>
+          </div>
+
+          <Button onClick={addNote} className="w-full">Notiz speichern</Button>
+        </div>
+      </Modal>
+
+      {/* Label Manager Modal - MOVED BELOW CREATE NOTE MODAL */}
       <Modal isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} title="Labels verwalten">
         <div className="space-y-6">
             
@@ -555,51 +600,6 @@ const NotesView: React.FC = () => {
                     </div>
                 ))}
             </div>
-        </div>
-      </Modal>
-
-      {/* Create Note Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Neue Notiz">
-        <div className="space-y-4">
-          <Input 
-            value={currentNote.title} 
-            onChange={(v) => setCurrentNote({...currentNote, title: v})} 
-            placeholder="Titel (z.B. Einkaufsliste)" 
-          />
-          <textarea
-            value={currentNote.content}
-            onChange={(e) => setCurrentNote({...currentNote, content: e.target.value})}
-            placeholder="Schreibe deine Gedanken..."
-            className={`w-full bg-transparent border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 h-32 resize-none ${useTheme().bgInput} ${useTheme().border} ${useTheme().textMain} ${useTheme().accent.ring}`}
-          />
-
-          {/* Label Selector */}
-          <div>
-            <div className="flex justify-between items-center mb-2">
-                <span className={`text-xs font-bold uppercase ${textSec}`}>Label wählen</span>
-                <button onClick={() => { setIsModalOpen(false); setIsLabelManagerOpen(true); }} className={`text-xs ${accent.text} hover:underline`}>
-                    Bearbeiten
-                </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-                {labels.map(label => (
-                    <button
-                        key={label.id}
-                        onClick={() => setCurrentNote({...currentNote, labelId: label.id})}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${
-                            currentNote.labelId === label.id 
-                            ? `${label.color} ${label.textColor} border-white/20 shadow-md` 
-                            : `${useTheme().bgInput} ${textSec} border-transparent`
-                        }`}
-                    >
-                        {label.name}
-                    </button>
-                ))}
-            </div>
-          </div>
-
-          <Button onClick={addNote} className="w-full">Notiz speichern</Button>
         </div>
       </Modal>
     </div>
