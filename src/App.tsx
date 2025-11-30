@@ -297,7 +297,6 @@ const NotesView: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>(() => {
     const loaded = JSON.parse(localStorage.getItem('lb_notes') || '[]');
     return loaded.map((n: any) => {
-        // Ensure unlabeled notes have empty string as ID or handle legacy data
         if (!n.labelId) return { ...n, labelId: '' };
         return n;
     });
@@ -313,7 +312,6 @@ const NotesView: React.FC = () => {
   useEffect(() => localStorage.setItem('lb_notes', JSON.stringify(notes)), [notes]);
   useEffect(() => localStorage.setItem('lb_labels', JSON.stringify(labels)), [labels]);
 
-  // Helper to find label or return unlabeled style
   const getLabel = (id: string) => {
     if (!id || id === '') return unlabeledLabel;
     return labels.find(l => l.id === id) || unlabeledLabel;
@@ -325,7 +323,6 @@ const NotesView: React.FC = () => {
     ? notes 
     : notes.filter(n => {
         if (activeFilters.includes('unlabeled')) {
-            // Check if note matches explicit unlabeled filter or normal labels
             return n.labelId === '' || activeFilters.includes(n.labelId);
         }
         return activeFilters.includes(n.labelId);
@@ -358,7 +355,6 @@ const NotesView: React.FC = () => {
     if (!confirm("Label wirklich löschen? Zugehörige Notizen werden 'Labellos'.")) return;
     const newLabels = labels.filter(l => l.id !== id);
     setLabels(newLabels);
-    // Move notes to unlabeled (empty string)
     setNotes(notes.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
     setActiveFilters(prev => prev.filter(fid => fid !== id));
   };
@@ -384,7 +380,6 @@ const NotesView: React.FC = () => {
           <div className={`h-9 w-9 flex items-center justify-center rounded-lg border flex-shrink-0 ${border} ${bgCard}`}>
             <Filter size={16} className={textSec} />
           </div>
-          {/* Unlabeled Filter */}
           <button 
             onClick={() => toggleFilter('unlabeled')} 
             className={`h-9 whitespace-nowrap px-3 rounded-lg text-sm font-medium transition-all border flex-shrink-0 flex items-center gap-1 ${activeFilters.includes('unlabeled') ? `bg-gray-700 text-gray-200 border-transparent shadow-sm scale-105` : `${bgCard} ${textSec} ${border} opacity-70 hover:opacity-100`}`}
@@ -446,6 +441,7 @@ const TierListView: React.FC = () => {
   const [addingToTier, setAddingToTier] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [draggedItem, setDraggedItem] = useState<TierItem | null>(null);
+  const [touchTarget, setTouchTarget] = useState<string | null>(null);
   const { bgCard, border, textMain, textSec, accent, bgInput } = useTheme();
 
   useEffect(() => localStorage.setItem('lb_tierlists', JSON.stringify(lists)), [lists]);
@@ -453,17 +449,43 @@ const TierListView: React.FC = () => {
   const activeList = lists.find(l => l.id === activeListId);
   const tiers = [{ id: 'S', color: 'bg-red-500' }, { id: 'A', color: 'bg-orange-500' }, { id: 'B', color: 'bg-yellow-500' }, { id: 'C', color: 'bg-green-500' }, { id: 'D', color: 'bg-blue-500' }];
 
-  const handleDrop = (e: React.DragEvent, targetTier: string) => {
-    e.preventDefault();
+  const handleDrop = (targetTier: string) => {
     if (!draggedItem || draggedItem.tier === targetTier) return;
     setLists(lists.map(list => list.id === activeListId ? { ...list, items: list.items.map(item => item.id === draggedItem.id ? { ...item, tier: targetTier } : item) } : list));
     setDraggedItem(null);
+    setTouchTarget(null);
   };
 
   const handleAddItem = () => {
     if (!newItemName.trim() || !addingToTier) return;
     setLists(lists.map(list => list.id === activeListId ? { ...list, items: [...list.items, { id: Date.now(), name: newItemName, tier: addingToTier }] } : list));
     setNewItemName(''); setAddingToTier(null);
+  };
+
+  // --- TOUCH HANDLERS ---
+  const handleTouchStart = (item: TierItem) => {
+    setDraggedItem(item);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    // Touch Logic: Identify where the finger is
+    const touch = e.touches[0];
+    const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+    const tierContainer = targetElement?.closest('[data-tier-id]');
+    
+    if (tierContainer) {
+      setTouchTarget(tierContainer.getAttribute('data-tier-id'));
+    } else {
+      setTouchTarget(null);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTarget && draggedItem) {
+      handleDrop(touchTarget);
+    }
+    setDraggedItem(null);
+    setTouchTarget(null);
   };
 
   if (!activeList) {
@@ -487,18 +509,30 @@ const TierListView: React.FC = () => {
   }
 
   return (
-    <div className="pb-24">
+    <div className="pb-24" onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       <div className="flex items-center gap-2 mb-6"><button onClick={() => setActiveListId(null)} className={`${textSec} hover:${textMain}`}><Menu size={24} /></button><h2 className={`text-xl font-bold ${textMain} flex-1 truncate`}>{activeList.title}</h2></div>
       <div className="space-y-2">
         {tiers.map(tier => (
-          <div key={tier.id} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} onDrop={(e) => handleDrop(e, tier.id)} className={`flex min-h-[80px] ${bgCard} rounded-lg overflow-hidden border ${border} transition-colors hover:border-opacity-50`}>
+          <div 
+            key={tier.id} 
+            data-tier-id={tier.id}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} 
+            onDrop={(e) => { e.preventDefault(); handleDrop(tier.id); }} 
+            className={`flex min-h-[80px] ${bgCard} rounded-lg overflow-hidden border ${border} transition-all duration-200 ${touchTarget === tier.id ? `ring-2 ring-${accent.name.split(' ')[0].toLowerCase()}-500 scale-[1.02] z-10` : ''}`}
+          >
             <div className={`${tier.color} w-14 flex flex-col items-center justify-center flex-shrink-0 gap-1 py-2`}>
               <span className="text-xl font-black text-black/50">{tier.id}</span>
               <button onClick={() => setAddingToTier(tier.id)} className="bg-black/20 hover:bg-black/40 text-white rounded p-0.5 transition-colors"><Plus size={14} /></button>
             </div>
             <div className="p-2 flex-1 flex flex-wrap gap-2 content-start">
               {activeList.items.filter(i => i.tier === tier.id).map(item => (
-                <div key={item.id} draggable onDragStart={(e) => { setDraggedItem(item); e.dataTransfer.effectAllowed = "move"; }} className={`${bgInput} px-3 py-1 rounded text-sm ${textMain} flex items-center gap-2 animate-in zoom-in duration-200 cursor-move shadow-sm border ${border}`}>
+                <div 
+                  key={item.id} 
+                  draggable 
+                  onDragStart={(e) => { setDraggedItem(item); e.dataTransfer.effectAllowed = "move"; }} 
+                  onTouchStart={() => handleTouchStart(item)}
+                  className={`${bgInput} px-3 py-1 rounded text-sm ${textMain} flex items-center gap-2 shadow-sm border ${border} touch-none ${draggedItem?.id === item.id ? 'opacity-50 scale-110' : ''}`}
+                >
                   <GripVertical size={12} className={textSec} /><span>{item.name}</span>
                   <button onClick={() => setLists(lists.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className={`${textSec} hover:text-red-400 ml-1`}><X size={12} /></button>
                 </div>
@@ -545,10 +579,8 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
       const currentTierlists: TierList[] = JSON.parse(localStorage.getItem('lb_tierlists') || '[]');
       const currentLabels: Label[] = JSON.parse(localStorage.getItem('lb_labels') || '[]');
 
-      // Keep existing, add only new ones based on ID
       const newNotes = incomingData.notes.filter((n: Note) => !currentNotes.some(cn => cn.id === n.id));
       const newTierlists = incomingData.tierlists.filter((t: TierList) => !currentTierlists.some(ct => ct.id === t.id));
-      // For labels, we also check ID to avoid duplicates
       const newLabels = incomingData.labels.filter((l: Label) => !currentLabels.some(cl => cl.id === l.id));
 
       const mergedNotes = [...currentNotes, ...newNotes];
@@ -573,19 +605,15 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
     try {
       const text = await navigator.clipboard.readText();
       if (!text) {
-        alert("Zwischenablage ist leer oder konnte nicht gelesen werden.");
+        alert("Zwischenablage ist leer.");
         setShowImport(true);
         return;
       }
-
       const data = JSON.parse(text);
       if (!data.notes && !data.tierlists) throw new Error("Invalid Format");
-
       mergeAndSave(data);
-
     } catch (err) {
       console.error("Auto-Import failed:", err);
-      // Fallback: show the textarea if automatic reading fails (e.g. browser permission)
       setShowImport(true);
     }
   };
@@ -630,29 +658,13 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
         <div className="space-y-3">
            <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Aussehen</h4>
            <div className={`${bgInput} p-1 rounded-xl flex border ${border}`}>
-              <button 
-                onClick={() => setMode('light')} 
-                className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'light' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-400'}`}
-              >
-                <Sun size={16} /> Hell
-              </button>
-              <button 
-                onClick={() => setMode('dark')} 
-                className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'dark' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-gray-300'}`}
-              >
-                <Moon size={16} /> Dunkel
-              </button>
+              <button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'light' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-400'}`}><Sun size={16} /> Hell</button>
+              <button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'dark' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-gray-300'}`}><Moon size={16} /> Dunkel</button>
            </div>
-
            <div className="grid grid-cols-3 gap-2">
               {Object.entries(accents).map(([key, val]) => (
-                <button 
-                  key={key}
-                  onClick={() => setAccentKey(key as AccentKey)}
-                  className={`p-2 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${accentKey === key ? `${val.border} ${val.lightBg}` : `${border} ${bgInput} opacity-70 hover:opacity-100`}`}
-                >
-                  <div className={`w-4 h-4 rounded-full ${val.primary}`}></div>
-                  <span className={`text-[10px] font-bold ${textMain}`}>{val.name}</span>
+                <button key={key} onClick={() => setAccentKey(key as AccentKey)} className={`p-2 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${accentKey === key ? `${val.border} ${val.lightBg}` : `${border} ${bgInput} opacity-70 hover:opacity-100`}`}>
+                  <div className={`w-4 h-4 rounded-full ${val.primary}`}></div><span className={`text-[10px] font-bold ${textMain}`}>{val.name}</span>
                 </button>
               ))}
            </div>
@@ -670,24 +682,17 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
                     <Clipboard size={18} /> Aus Zwischenablage einfügen
                 </Button>
             </div>
-            
             {showImport && (
                 <div className={`p-3 rounded-xl border ${border} ${bgInput} animate-in fade-in slide-in-from-top-2`}>
                     <p className={`text-[10px] text-red-400 mb-2`}>Automatisches Einfügen nicht möglich. Bitte manuell einfügen:</p>
-                    <textarea 
-                        value={importText}
-                        onChange={(e) => setImportText(e.target.value)}
-                        placeholder="Füge hier den Code ein..."
-                        className={`w-full bg-transparent border-0 text-xs ${textMain} h-20 resize-none focus:outline-none mb-2`}
-                    />
+                    <textarea value={importText} onChange={(e) => setImportText(e.target.value)} placeholder="Füge hier den Code ein..." className={`w-full bg-transparent border-0 text-xs ${textMain} h-20 resize-none focus:outline-none mb-2`} />
                     <Button onClick={handlePasteImport} disabled={!importText} className="w-full h-8 text-xs">Importieren</Button>
                 </div>
             )}
-            <p className={`text-[10px] ${textSec}`}>
-                Kopiere den Code auf dem PC und drücke auf dem Handy "Einfügen". Bestehende Daten bleiben erhalten.
-            </p>
+            <p className={`text-[10px] ${textSec}`}>Kopiere den Code auf dem PC und drücke auf dem Handy "Einfügen". Bestehende Daten bleiben erhalten.</p>
         </div>
 
+        {/* Backup Section */}
         <div className="space-y-3">
           <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Datei-Backup</h4>
           <div className="space-y-2">
