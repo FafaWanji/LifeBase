@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
 import { 
   StickyNote, List, Plus, Trash2, X, 
-  Settings, Menu, GripVertical, Download, Upload, AlertTriangle, 
-  Moon, Sun, Filter, Pencil, Tag, Copy, Clipboard, Check, Search
+  Settings, Menu, Download, Upload, AlertTriangle, 
+  Moon, Sun, Pencil, Tag, Copy, Clipboard, Check, Search
 } from 'lucide-react';
 
 // ==========================================
@@ -122,17 +122,31 @@ const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => 
   return <input className={`w-full ${bgInput} border ${border} rounded-xl px-4 py-3 ${textMain} placeholder:${textSec} focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all ${props.className}`} {...props} />;
 };
 
-const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: ReactNode; customTheme?: { bg: string; text: string } }> = ({ isOpen, onClose, title, children, customTheme }) => {
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+  customTheme?: { bg: string; text: string };
+}
+
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, customTheme }) => {
   const { bgCard, border, textMain, textSec, modalOverlay } = useTheme();
-  if (!isOpen) return null;
-  const theme = customTheme || { bg: bgCard, text: textMain };
-  const borderClass = customTheme ? 'border-transparent' : border;
+  
+  const finalBg = customTheme ? customTheme.bg : bgCard;
+  const finalText = customTheme ? customTheme.text : textMain;
+  const finalBorder = customTheme ? 'border-transparent' : border;
   const closeBtnClass = customTheme ? `hover:bg-black/10 ${customTheme.text}` : `${textSec} hover:${textMain}`;
+
+  if (!isOpen) return null;
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in duration-200`}>
-      <div className={`${theme.bg} w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border ${borderClass} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 transition-colors duration-300`}>
-        <div className={`flex-shrink-0 flex items-center justify-between p-4 border-b ${customTheme ? 'border-black/5' : border}`}><h3 className={`text-lg font-bold ${theme.text}`}>{title}</h3><button onClick={onClose} className={closeBtnClass}><X size={20} /></button></div>
-        <div className={`p-4 overflow-y-auto ${theme.text}`}>{children}</div>
+      <div className={`${finalBg} w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border ${finalBorder} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 transition-colors duration-300`}>
+        <div className={`flex-shrink-0 flex items-center justify-between p-4 border-b ${customTheme ? 'border-black/5' : border}`}>
+          <h3 className={`text-lg font-bold ${finalText}`}>{title}</h3>
+          <button onClick={onClose} className={closeBtnClass}><X size={20} /></button>
+        </div>
+        <div className={`p-4 overflow-y-auto ${finalText}`}>{children}</div>
       </div>
     </div>
   );
@@ -170,7 +184,7 @@ const FlagEN = () => <svg viewBox="0 0 60 30" className="w-6 h-6 rounded overflo
 const FlagTR = () => <svg viewBox="0 0 1200 800" className="w-6 h-6 rounded overflow-hidden shadow-sm"><rect width="1200" height="800" fill="#E30A17"/><circle cx="425" cy="400" r="200" fill="#fff"/><circle cx="475" cy="400" r="160" fill="#E30A17"/><polygon points="583.334,400 752.928,455.519 647.712,311.803 647.712,488.197 752.928,344.481" fill="#fff"/></svg>;
 
 const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { mode, setMode, accentKey, setAccentKey, bgInput, textMain, textSec, border, language, setLanguage, t, accent } = useTheme();
+  const { mode, setMode, bgInput, textMain, textSec, border, language, setLanguage, t } = useTheme();
   const { notes, tierlists, labels, setNotes, setTierlists, setLabels } = useData();
   const [copySuccess, setCopySuccess] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -193,7 +207,7 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('settings')}>
       <div className="space-y-8">
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>{t('appearance')}</h4><div className={`${bgInput} p-1 rounded-xl flex border ${border}`}><button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'light' ? 'bg-white text-black' : 'text-gray-500'}`}><Sun size={16}/>{t('light')}</button><button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'dark' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}><Moon size={16}/>{t('dark')}</button></div></div>
+         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('appearance')}</h4><div className={`${bgInput} p-1 rounded-xl flex border ${border}`}><button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'light' ? 'bg-white text-black' : 'text-gray-500'}`}><Sun size={16}/>{t('light')}</button><button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'dark' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}><Moon size={16}/>{t('dark')}</button></div></div>
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <button key={l} onClick={() => setLanguage(l as any)} className={`flex-1 py-3 rounded-xl border-2 flex justify-center ${language === l ? border : 'border-transparent'}`}>{l === 'de' ? <FlagDE/> : l === 'en' ? <FlagEN/> : <FlagTR/>}</button>)}</div></div>
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('quickSync')}</h4><div className="flex gap-2"><Button onClick={() => { navigator.clipboard.writeText(getExportData()).then(() => { setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000); }) }} className="flex-1" variant="secondary">{copySuccess ? <Check size={18}/> : <Copy size={18}/>} {copySuccess ? t('copied') : t('copyData')}</Button><Button onClick={async () => { try { handleMerge(await navigator.clipboard.readText()); } catch { setShowImport(true); }}} className="flex-1" variant="secondary"><Clipboard size={18}/> {t('pasteFromClipboard')}</Button></div>{showImport && <div className={`p-3 rounded-xl border ${border} ${bgInput}`}><textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder={t('pastePlaceholder')} className={`w-full bg-transparent border-0 text-xs ${textMain} h-20 resize-none outline-none mb-2`} /><Button onClick={handlePasteImport} className="w-full h-8 text-xs">{t('import')}</Button></div>}<p className={`text-[10px] ${textSec}`}>{t('syncInfo')}</p></div>
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('backup')}</h4><div className="space-y-2"><Button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getExportData()], {type: 'application/json'})); a.download = 'backup.json'; a.click(); }} variant="secondary" className="w-full justify-between"><span>{t('saveToFile')}</span><Download size={18}/></Button><input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (ev) => handleMerge(ev.target?.result as string); r.readAsText(f); }}} className="hidden" /><Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>{t('loadFromFile')}</span><Upload size={18}/></Button></div></div>
