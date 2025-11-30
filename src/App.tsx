@@ -46,11 +46,6 @@ interface TierList {
   id: number; title: string; items: TierItem[];
 }
 
-interface ExportData {
-  notes: Note[]; tierlists: TierList[]; labels: Label[];
-  exportDate: string; version: string;
-}
-
 // ==========================================
 // 2. THEME SYSTEM & CONTEXT
 // ==========================================
@@ -637,6 +632,10 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
               </button>
             ))}
           </div>
+        </div>
+        
+        <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex gap-3 items-start">
+          <AlertTriangle className="text-yellow-500 shrink-0" size={20} /><p className="text-xs text-yellow-600 dark:text-yellow-200/80">Daten werden lokal auf diesem Gerät gespeichert. Erstelle regelmäßig Backups.</p>
         </div>
       </div>
     </Modal>
