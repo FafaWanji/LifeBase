@@ -1,73 +1,121 @@
-# React + TypeScript + Vite
+LifeBase - Personal Organizer App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+LifeBase is a modern, mobile-first Progressive Web App (PWA) built with React, TypeScript, and Tailwind CSS. It is designed to help you organize your thoughts and rank your favorite media without the need for a complex backend or account registration.
 
-Currently, two official plugins are available:
+🌟 Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+📝 Smart Notes
 
-## React Compiler
+Sticky-Note Interface: Notes take on the color of their assigned label for a visual, sticky-note feel.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Label Management:
 
-## Expanding the ESLint configuration
+Create custom labels with names and specific colors.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Edit Labels: Rename labels or change their colors on the fly; all associated notes update automatically.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Safe Deletion: Deleting a label doesn't delete the notes—they simply become "Unlabeled" (Labellos).
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+Filtering:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Filter notes by clicking on label tags in the top bar.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+"Labellos" Filter: Quickly find notes that haven't been assigned a category yet.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Editing: Click any note to edit its content or change its label. The editor adapts to the note's color theme.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+🏆 Tier Lists
+
+Drag & Drop: Intuitive drag-and-drop interface for ranking items.
+
+Multi-List Support: Create separate tier lists for Games, Movies, Anime, etc.
+
+Tier Rows: Standard S, A, B, C, D ranking rows.
+
+Quick Add: Add items directly to specific tiers.
+
+🎨 Customization (Zen Mode)
+
+Dark & Light Mode: Fully supported themes that adapt to system preferences or manual selection.
+
+Accent Colors: Choose your vibe from 6 different accent profiles (Indigo, Rose, Emerald, Amber, Cyan, Violet).
+
+Adaptive UI: The interface changes tint based on your selected accent color.
+
+🔄 Data & Sync (No Cloud Required)
+
+Local First: All data is stored locally on your device (localStorage) for privacy and speed.
+
+Quick Sync (Clipboard):
+
+Transfer data between Phone and PC without a server.
+
+Copy: Exports your database to a text string in your clipboard.
+
+Paste & Merge: Intelligently merges imported data with your existing data. It adds new items but preserves your current ones (no accidental overwrites of existing IDs).
+
+File Backup: Export/Import your entire database as a .json file for long-term safekeeping.
+
+🛠️ Tech Stack
+
+Framework: React
+
+Language: TypeScript
+
+Styling: Tailwind CSS v4
+
+Icons: Lucide React
+
+Build Tool: Vite
+
+🚀 Getting Started
+
+Prerequisites
+
+Node.js (LTS version recommended)
+
+npm or yarn
+
+Installation
+
+Clone the repository or download the source code.
+
+Install dependencies:
+
+npm install
+
+
+Note: Ensure @tailwindcss/postcss is installed if using Tailwind v4.
+
+Start the development server:
+
+npm run dev
+
+
+Open the link provided in the terminal (usually http://localhost:5173) on your PC or Phone (if on the same Wi-Fi).
+
+📱 Mobile Installation (PWA)
+
+To get the full app experience without the browser bars:
+
+Host the app (e.g., via Vercel or locally).
+
+Open the URL in Chrome on Android or Safari on iOS.
+
+Tap the menu and select "Add to Home Screen".
+
+Launch LifeBase from your app drawer.
+
+🤝 Contributing
+
+This is a personal project. Feel free to fork it and add your own features!
+
+Commit Types:
+
+feat: New features (e.g., new tier row types).
+
+fix: Bug fixes.
+
+refactor: Code cleanup without feature changes.
+
+style: UI/CSS updates.
