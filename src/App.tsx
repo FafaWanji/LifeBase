@@ -14,7 +14,10 @@ import {
   Upload,
   AlertTriangle,
   Moon,
-  Sun
+  Sun,
+  Tag,
+  Filter,
+  Palette
 } from 'lucide-react';
 
 // --- Type Definitions ---
@@ -51,11 +54,18 @@ interface ThemeContextType extends ThemeProfile {
   setAccentKey: (key: AccentKey) => void;
 }
 
+interface Label {
+  id: string;
+  name: string;
+  color: string; // Tailwind class
+  textColor: string;
+}
+
 interface Note {
   id: number;
   title: string;
   content: string;
-  color: string;
+  labelId: string; // Verknüpfung zum Label
   date: string;
 }
 
@@ -74,6 +84,7 @@ interface TierList {
 interface ExportData {
   notes: Note[];
   tierlists: TierList[];
+  labels: Label[];
   exportDate: string;
   version: string;
 }
@@ -281,21 +292,78 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
 
 // --- Feature: Notes ---
 
+const defaultLabels: Label[] = [
+  { id: '1', name: 'Allgemein', color: 'bg-yellow-200', textColor: 'text-yellow-900' },
+  { id: '2', name: 'Arbeit', color: 'bg-blue-200', textColor: 'text-blue-900' },
+  { id: '3', name: 'Privat', color: 'bg-green-200', textColor: 'text-green-900' },
+  { id: '4', name: 'Wichtig', color: 'bg-red-200', textColor: 'text-red-900' },
+  { id: '5', name: 'Ideen', color: 'bg-purple-200', textColor: 'text-purple-900' },
+];
+
+// Color definitions for creating new labels
+const availableColors = [
+  { bg: 'bg-yellow-200', text: 'text-yellow-900', name: 'Gelb' },
+  { bg: 'bg-blue-200', text: 'text-blue-900', name: 'Blau' },
+  { bg: 'bg-green-200', text: 'text-green-900', name: 'Grün' },
+  { bg: 'bg-red-200', text: 'text-red-900', name: 'Rot' },
+  { bg: 'bg-purple-200', text: 'text-purple-900', name: 'Lila' },
+  { bg: 'bg-orange-200', text: 'text-orange-900', name: 'Orange' },
+  { bg: 'bg-gray-200', text: 'text-gray-900', name: 'Grau' },
+  { bg: 'bg-pink-200', text: 'text-pink-900', name: 'Pink' },
+  { bg: 'bg-teal-200', text: 'text-teal-900', name: 'Türkis' },
+];
+
 const NotesView: React.FC = () => {
+  // Load Labels
+  const [labels, setLabels] = useState<Label[]>(() => {
+    const saved = localStorage.getItem('lb_labels');
+    return saved ? JSON.parse(saved) : defaultLabels;
+  });
+
+  // Load Notes
   const [notes, setNotes] = useState<Note[]>(() => {
     const saved = localStorage.getItem('lb_notes');
-    return saved ? JSON.parse(saved) : [];
+    let loadedNotes = saved ? JSON.parse(saved) : [];
+    
+    // Migration: If note has "color" but no "labelId", try to map it
+    return loadedNotes.map((n: any) => {
+      if (!n.labelId) {
+        const match = defaultLabels.find(l => l.color === n.color);
+        return { ...n, labelId: match ? match.id : defaultLabels[0].id };
+      }
+      return n;
+    });
   });
+
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentNote, setCurrentNote] = useState<Omit<Note, 'id' | 'date'>>({ title: '', content: '', color: 'bg-yellow-200' });
-  const { textMain, textSec } = useTheme();
+  const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false); // New: Label Manager Modal State
+  const [currentNote, setCurrentNote] = useState({ title: '', content: '', labelId: '' });
+  
+  // State for creating a NEW label inside the manager/modal
+  const [newLabelName, setNewLabelName] = useState('');
+  const [newLabelColor, setNewLabelColor] = useState(availableColors[0]);
+
+  const { textMain, textSec, bgCard, border, accent, bgInput } = useTheme();
 
   useEffect(() => localStorage.setItem('lb_notes', JSON.stringify(notes)), [notes]);
+  useEffect(() => localStorage.setItem('lb_labels', JSON.stringify(labels)), [labels]);
 
   const addNote = () => {
     if (!currentNote.title.trim() && !currentNote.content.trim()) return;
-    setNotes([{ ...currentNote, id: Date.now(), date: new Date().toLocaleDateString() }, ...notes]);
-    setCurrentNote({ title: '', content: '', color: 'bg-yellow-200' });
+    
+    // Default to first label if none selected
+    const labelIdToUse = currentNote.labelId || labels[0].id;
+    
+    setNotes([{ 
+      id: Date.now(), 
+      title: currentNote.title, 
+      content: currentNote.content, 
+      labelId: labelIdToUse,
+      date: new Date().toLocaleDateString('de-DE') 
+    }, ...notes]);
+    
+    setCurrentNote({ title: '', content: '', labelId: '' });
     setIsModalOpen(false);
   };
 
@@ -303,39 +371,135 @@ const NotesView: React.FC = () => {
     setNotes(notes.filter(n => n.id !== id));
   };
 
-  const colors = [
-    { bg: 'bg-yellow-200', text: 'text-yellow-900' },
-    { bg: 'bg-green-200', text: 'text-green-900' },
-    { bg: 'bg-blue-200', text: 'text-blue-900' },
-    { bg: 'bg-purple-200', text: 'text-purple-900' },
-    { bg: 'bg-red-200', text: 'text-red-900' },
-  ];
+  // --- Label Management Functions ---
+
+  const createNewLabel = () => {
+    if (!newLabelName.trim()) return;
+    const newLabel: Label = {
+      id: Date.now().toString(),
+      name: newLabelName,
+      color: newLabelColor.bg,
+      textColor: newLabelColor.text
+    };
+    const updatedLabels = [...labels, newLabel];
+    setLabels(updatedLabels);
+    
+    // If we are in the "New Note" modal, auto-select it
+    if (isModalOpen) {
+       setCurrentNote({ ...currentNote, labelId: newLabel.id });
+    }
+    
+    setNewLabelName('');
+  };
+
+  const deleteLabel = (id: string) => {
+    if (labels.length <= 1) {
+      alert("Ein Label muss mindestens übrig bleiben!");
+      return;
+    }
+    
+    if (!confirm("Label wirklich löschen? Notizen mit diesem Label werden auf das erste verfügbare Label zurückgesetzt.")) {
+      return;
+    }
+
+    const newLabels = labels.filter(l => l.id !== id);
+    setLabels(newLabels);
+    
+    // Migration: Move notes from deleted label to the first available label
+    const fallbackLabelId = newLabels[0].id;
+    const updatedNotes = notes.map(n => 
+      n.labelId === id ? { ...n, labelId: fallbackLabelId } : n
+    );
+    setNotes(updatedNotes);
+
+    // Remove from filters if active
+    setActiveFilters(activeFilters.filter(fid => fid !== id));
+  };
+
+  const toggleFilter = (labelId: string) => {
+    if (activeFilters.includes(labelId)) {
+      setActiveFilters(activeFilters.filter(id => id !== labelId));
+    } else {
+      setActiveFilters([...activeFilters, labelId]);
+    }
+  };
+
+  const filteredNotes = activeFilters.length === 0 
+    ? notes 
+    : notes.filter(n => activeFilters.includes(n.labelId));
 
   return (
-    <div className="space-y-6 pb-24">
-      <div className="flex justify-between items-center">
-        <h2 className={`text-2xl font-bold ${textMain}`}>My Notes</h2>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus size={20} /> New Note
+    <div className="space-y-4 pb-24">
+      <div className="flex justify-between items-center mb-2">
+        <h2 className={`text-2xl font-bold ${textMain}`}>Meine Notizen</h2>
+        <Button onClick={() => {
+          setCurrentNote({ title: '', content: '', labelId: labels[0].id });
+          setIsModalOpen(true);
+        }}>
+          <Plus size={20} /> Neu
         </Button>
       </div>
 
+      {/* Filter Bar with Manage Button */}
+      <div className="flex gap-2 items-center">
+        {/* Manage Labels Button */}
+        <button 
+            onClick={() => setIsLabelManagerOpen(true)}
+            className={`h-9 w-9 flex items-center justify-center rounded-lg border flex-shrink-0 transition-colors ${bgCard} ${border} ${textSec} hover:${textMain}`}
+            title="Labels verwalten"
+        >
+            <Settings size={18} />
+        </button>
+
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide flex-grow">
+            <div className={`h-9 w-9 flex items-center justify-center rounded-lg border flex-shrink-0 ${border} ${bgCard}`}>
+                <Filter size={16} className={textSec} />
+            </div>
+            {labels.map(label => {
+                const isActive = activeFilters.includes(label.id);
+                return (
+                    <button
+                        key={label.id}
+                        onClick={() => toggleFilter(label.id)}
+                        className={`h-9 whitespace-nowrap px-3 rounded-lg text-sm font-medium transition-all border flex-shrink-0 ${
+                            isActive 
+                            ? `${label.color} ${label.textColor} border-transparent shadow-sm scale-105` 
+                            : `${bgCard} ${textSec} ${border} opacity-70 hover:opacity-100`
+                        }`}
+                    >
+                        {label.name}
+                    </button>
+                )
+            })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
-        {notes.length === 0 && (
+        {filteredNotes.length === 0 && (
           <div className={`col-span-2 text-center py-20 ${textSec} flex flex-col items-center`}>
             <StickyNote size={48} className="mb-4 opacity-20" />
-            <p>No notes yet. Tap 'New Note' to start.</p>
+            <p>Keine Notizen gefunden.</p>
           </div>
         )}
-        {notes.map(note => {
-          const theme = colors.find(c => c.bg === note.color) || colors[0];
+        {filteredNotes.map(note => {
+          const label = labels.find(l => l.id === note.labelId) || labels[0];
+          
           return (
-            <div key={note.id} className={`${note.color} p-4 rounded-xl shadow-sm flex flex-col min-h-[160px] relative group transition-transform active:scale-95`}>
-              <h3 className={`font-bold text-lg mb-2 ${theme.text} line-clamp-1`}>{note.title}</h3>
-              <p className={`text-sm ${theme.text} opacity-80 line-clamp-4 flex-grow whitespace-pre-wrap`}>{note.content}</p>
-              <div className="flex justify-between items-center mt-2">
-                <span className={`text-xs ${theme.text} opacity-60`}>{note.date}</span>
-                <button onClick={() => deleteNote(note.id)} className={`p-2 rounded-full hover:bg-black/10 ${theme.text}`}>
+            <div key={note.id} className={`${label.color} p-4 rounded-xl shadow-sm flex flex-col min-h-[160px] relative group transition-transform active:scale-95`}>
+              
+              {/* Label Badge */}
+              <div className="flex justify-between items-start mb-2">
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white/30 ${label.textColor}`}>
+                    {label.name}
+                </span>
+              </div>
+
+              <h3 className={`font-bold text-lg mb-1 ${label.textColor} line-clamp-1`}>{note.title}</h3>
+              <p className={`text-sm ${label.textColor} opacity-80 line-clamp-4 flex-grow whitespace-pre-wrap`}>{note.content}</p>
+              
+              <div className="flex justify-between items-center mt-3">
+                <span className={`text-[10px] ${label.textColor} opacity-60`}>{note.date}</span>
+                <button onClick={() => deleteNote(note.id)} className={`p-2 rounded-full hover:bg-black/10 ${label.textColor}`}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -344,29 +508,101 @@ const NotesView: React.FC = () => {
         })}
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Note">
+      {/* Label Manager Modal */}
+      <Modal isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} title="Labels verwalten">
+        <div className="space-y-6">
+            
+            {/* Create New Label Section */}
+            <div className={`p-4 rounded-xl border ${border} ${bgInput}`}>
+                <h4 className={`text-xs font-bold uppercase mb-3 ${textSec}`}>Neues Label erstellen</h4>
+                <div className="flex gap-2 mb-3">
+                    <Input 
+                        value={newLabelName} 
+                        onChange={setNewLabelName} 
+                        placeholder="Name (z.B. Sport)" 
+                        className="text-sm py-2"
+                    />
+                    <Button onClick={createNewLabel} disabled={!newLabelName.trim()} className="py-2 px-4 whitespace-nowrap">
+                        <Plus size={18} />
+                    </Button>
+                </div>
+                
+                <div className="flex flex-wrap gap-2">
+                    {availableColors.map(c => (
+                        <button 
+                            key={c.name}
+                            onClick={() => setNewLabelColor(c)}
+                            className={`w-8 h-8 rounded-full ${c.bg} border-2 transition-transform ${newLabelColor.bg === c.bg ? 'border-gray-500 scale-110 shadow-md' : 'border-transparent hover:scale-105'}`}
+                            title={c.name}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            {/* Existing Labels List */}
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                <h4 className={`text-xs font-bold uppercase ${textSec}`}>Vorhandene Labels</h4>
+                {labels.map(label => (
+                    <div key={label.id} className={`flex items-center justify-between p-3 rounded-lg border ${border} ${bgCard}`}>
+                        <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 rounded-full ${label.color}`}></div>
+                            <span className={`font-medium ${textMain}`}>{label.name}</span>
+                        </div>
+                        <button 
+                            onClick={() => deleteLabel(label.id)}
+                            className={`${textSec} hover:text-red-400 p-2 rounded-lg hover:bg-red-400/10 transition-colors`}
+                            title="Label löschen"
+                        >
+                            <Trash2 size={18} />
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+      </Modal>
+
+      {/* Create Note Modal */}
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Neue Notiz">
         <div className="space-y-4">
           <Input 
             value={currentNote.title} 
             onChange={(v) => setCurrentNote({...currentNote, title: v})} 
-            placeholder="Title (e.g., Game Ideas)" 
+            placeholder="Titel (z.B. Einkaufsliste)" 
           />
           <textarea
             value={currentNote.content}
             onChange={(e) => setCurrentNote({...currentNote, content: e.target.value})}
-            placeholder="Write your thoughts here..."
+            placeholder="Schreibe deine Gedanken..."
             className={`w-full bg-transparent border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 h-32 resize-none ${useTheme().bgInput} ${useTheme().border} ${useTheme().textMain} ${useTheme().accent.ring}`}
           />
-          <div className="flex gap-2 justify-center">
-            {colors.map((c) => (
-              <button
-                key={c.bg}
-                onClick={() => setCurrentNote({...currentNote, color: c.bg})}
-                className={`w-8 h-8 rounded-full ${c.bg} border-2 ${currentNote.color === c.bg ? 'border-black/50 scale-110' : 'border-transparent'}`}
-              />
-            ))}
+
+          {/* Label Selector */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+                <span className={`text-xs font-bold uppercase ${textSec}`}>Label wählen</span>
+                <button onClick={() => { setIsModalOpen(false); setIsLabelManagerOpen(true); }} className={`text-xs ${accent.text} hover:underline`}>
+                    Bearbeiten
+                </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+                {labels.map(label => (
+                    <button
+                        key={label.id}
+                        onClick={() => setCurrentNote({...currentNote, labelId: label.id})}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${
+                            currentNote.labelId === label.id 
+                            ? `${label.color} ${label.textColor} border-white/20 shadow-md` 
+                            : `${useTheme().bgInput} ${textSec} border-transparent`
+                        }`}
+                    >
+                        {label.name}
+                    </button>
+                ))}
+            </div>
           </div>
-          <Button onClick={addNote} className="w-full">Save Note</Button>
+
+          <Button onClick={addNote} className="w-full">Notiz speichern</Button>
         </div>
       </Modal>
     </div>
@@ -498,9 +734,9 @@ const TierListView: React.FC = () => {
     return (
       <div className="space-y-6 pb-24">
          <div className="flex justify-between items-center">
-            <h2 className={`text-2xl font-bold ${textMain}`}>My Tier Lists</h2>
+            <h2 className={`text-2xl font-bold ${textMain}`}>Meine Tier Lists</h2>
             <Button onClick={() => setIsCreateModalOpen(true)}>
-                <Plus size={20} /> New List
+                <Plus size={20} /> Neu
             </Button>
         </div>
 
@@ -508,7 +744,7 @@ const TierListView: React.FC = () => {
             {lists.length === 0 && (
                  <div className={`text-center py-10 ${textSec}`}>
                     <List size={48} className="mx-auto mb-4 opacity-20" />
-                    <p>No tier lists yet.</p>
+                    <p>Noch keine Tier Lists vorhanden.</p>
                 </div>
             )}
             {lists.map(list => (
@@ -523,7 +759,7 @@ const TierListView: React.FC = () => {
                         </div>
                         <div>
                             <h3 className={`font-bold ${textMain}`}>{list.title}</h3>
-                            <p className={`text-sm ${textSec}`}>{list.items.length} items</p>
+                            <p className={`text-sm ${textSec}`}>{list.items.length} Einträge</p>
                         </div>
                     </div>
                     <button onClick={(e) => deleteList(e, list.id)} className={`${textSec} hover:text-red-400 p-2`}>
@@ -533,10 +769,10 @@ const TierListView: React.FC = () => {
             ))}
         </div>
 
-        <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="New Tier List">
+        <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Neue Tier List">
             <div className="space-y-4">
-                <Input value={newListTitle} onChange={setNewListTitle} placeholder="List Name (e.g., Best RPGs)" />
-                <Button onClick={createList} className="w-full">Create</Button>
+                <Input value={newListTitle} onChange={setNewListTitle} placeholder="Name (z.B. Beste Spiele)" />
+                <Button onClick={createList} className="w-full">Erstellen</Button>
             </div>
         </Modal>
       </div>
@@ -601,15 +837,15 @@ const TierListView: React.FC = () => {
               ))}
           </div>
           
-          <Modal isOpen={!!addingToTier} onClose={() => setAddingToTier(null)} title={`Add to Tier ${addingToTier}`}>
+          <Modal isOpen={!!addingToTier} onClose={() => setAddingToTier(null)} title={`Eintrag für Tier ${addingToTier}`}>
             <div className="space-y-4">
                 <Input 
                     value={newItemName} 
                     onChange={setNewItemName} 
-                    placeholder="Item Name" 
+                    placeholder="Name" 
                     autoFocus
                 />
-                <Button onClick={addItem} className="w-full">Add Item</Button>
+                <Button onClick={addItem} className="w-full">Hinzufügen</Button>
             </div>
           </Modal>
       </div>
@@ -631,8 +867,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
     const data: ExportData = {
       notes: JSON.parse(localStorage.getItem('lb_notes') || '[]'),
       tierlists: JSON.parse(localStorage.getItem('lb_tierlists') || '[]'),
+      labels: JSON.parse(localStorage.getItem('lb_labels') || '[]'),
       exportDate: new Date().toISOString(),
-      version: '1.0'
+      version: '1.1'
     };
     
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -655,15 +892,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
       try {
         const text = event.target?.result as string;
         const data = JSON.parse(text);
-        if (!Array.isArray(data.notes) && !Array.isArray(data.tierlists)) throw new Error('Invalid format');
-        if (confirm("This will overwrite your current data. Are you sure?")) {
+        
+        if (confirm("Dies wird deine aktuellen Daten überschreiben. Sicher?")) {
           if (data.notes) localStorage.setItem('lb_notes', JSON.stringify(data.notes));
           if (data.tierlists) localStorage.setItem('lb_tierlists', JSON.stringify(data.tierlists));
-          alert("Data imported successfully!");
+          if (data.labels) localStorage.setItem('lb_labels', JSON.stringify(data.labels));
+          
+          alert("Daten erfolgreich importiert!");
           window.location.reload();
         }
       } catch (err) {
-        alert("Error importing file: Invalid JSON format.");
+        alert("Fehler beim Importieren: Falsches Format.");
       }
     };
     reader.readAsText(file);
@@ -672,25 +911,25 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Settings">
+    <Modal isOpen={isOpen} onClose={onClose} title="Einstellungen">
       <div className="space-y-8">
         
         {/* Appearance Section */}
         <div className="space-y-3">
-           <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Appearance</h4>
+           <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Aussehen</h4>
            
            <div className={`${bgInput} p-1 rounded-xl flex border ${border}`}>
               <button 
                 onClick={() => setMode('light')} 
                 className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'light' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-400'}`}
               >
-                <Sun size={16} /> Light
+                <Sun size={16} /> Hell
               </button>
               <button 
                 onClick={() => setMode('dark')} 
                 className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'dark' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-gray-300'}`}
               >
-                <Moon size={16} /> Dark
+                <Moon size={16} /> Dunkel
               </button>
            </div>
 
@@ -710,15 +949,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
         {/* Data Section */}
         <div className="space-y-3">
-            <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Data</h4>
+            <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Daten</h4>
             <div className="space-y-2">
                 <Button onClick={exportData} variant="secondary" className="w-full justify-between">
-                    <span>Export Backup</span>
+                    <span>Backup exportieren</span>
                     <Download size={18} />
                 </Button>
                 <input type="file" ref={fileInputRef} onChange={handleImport} accept=".json" className="hidden" />
                 <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between">
-                    <span>Import Backup</span>
+                    <span>Backup importieren</span>
                     <Upload size={18} />
                 </Button>
             </div>
@@ -727,7 +966,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex gap-3 items-start">
             <AlertTriangle className="text-yellow-500 shrink-0" size={20} />
             <p className="text-xs text-yellow-600 dark:text-yellow-200/80">
-                Data is stored on this device. Export regularly to keep it safe.
+                Daten werden lokal auf diesem Gerät gespeichert. Erstelle regelmäßig Backups.
             </p>
         </div>
 
@@ -777,7 +1016,7 @@ const AppContent: React.FC = () => {
             className={`p-4 flex flex-col items-center gap-1 transition-colors ${currentTab === 'notes' ? accent.text : `${textSec} hover:${textMain}`}`}
           >
             <StickyNote size={24} strokeWidth={currentTab === 'notes' ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">Notes</span>
+            <span className="text-[10px] font-medium">Notizen</span>
           </button>
           
           <button 
@@ -792,6 +1031,8 @@ const AppContent: React.FC = () => {
       
       <style>{`
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
         ::selection { background-color: ${accent.primary}; color: white; }
       `}</style>
     </div>
