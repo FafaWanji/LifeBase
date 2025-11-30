@@ -129,7 +129,7 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
   const borderClass = customTheme ? 'border-transparent' : border;
   const closeBtnClass = customTheme ? `hover:bg-black/10 ${customTheme.text}` : `${textSec} hover:${textMain}`;
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in`}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in duration-200`}>
       <div className={`${theme.bg} w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border ${borderClass} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 transition-colors duration-300`}>
         <div className={`flex-shrink-0 flex items-center justify-between p-4 border-b ${customTheme ? 'border-black/5' : border}`}><h3 className={`text-lg font-bold ${theme.text}`}>{title}</h3><button onClick={onClose} className={closeBtnClass}><X size={20} /></button></div>
         <div className={`p-4 overflow-y-auto ${theme.text}`}>{children}</div>
@@ -193,7 +193,7 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('settings')}>
       <div className="space-y-8">
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('appearance')}</h4><div className={`${bgInput} p-1 rounded-xl flex border ${border}`}><button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'light' ? 'bg-white text-black' : 'text-gray-500'}`}><Sun size={16}/>{t('light')}</button><button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'dark' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}><Moon size={16}/>{t('dark')}</button></div></div>
+         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>{t('appearance')}</h4><div className={`${bgInput} p-1 rounded-xl flex border ${border}`}><button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'light' ? 'bg-white text-black' : 'text-gray-500'}`}><Sun size={16}/>{t('light')}</button><button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'dark' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}><Moon size={16}/>{t('dark')}</button></div></div>
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <button key={l} onClick={() => setLanguage(l as any)} className={`flex-1 py-3 rounded-xl border-2 flex justify-center ${language === l ? border : 'border-transparent'}`}>{l === 'de' ? <FlagDE/> : l === 'en' ? <FlagEN/> : <FlagTR/>}</button>)}</div></div>
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('quickSync')}</h4><div className="flex gap-2"><Button onClick={() => { navigator.clipboard.writeText(getExportData()).then(() => { setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000); }) }} className="flex-1" variant="secondary">{copySuccess ? <Check size={18}/> : <Copy size={18}/>} {copySuccess ? t('copied') : t('copyData')}</Button><Button onClick={async () => { try { handleMerge(await navigator.clipboard.readText()); } catch { setShowImport(true); }}} className="flex-1" variant="secondary"><Clipboard size={18}/> {t('pasteFromClipboard')}</Button></div>{showImport && <div className={`p-3 rounded-xl border ${border} ${bgInput}`}><textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder={t('pastePlaceholder')} className={`w-full bg-transparent border-0 text-xs ${textMain} h-20 resize-none outline-none mb-2`} /><Button onClick={handlePasteImport} className="w-full h-8 text-xs">{t('import')}</Button></div>}<p className={`text-[10px] ${textSec}`}>{t('syncInfo')}</p></div>
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('backup')}</h4><div className="space-y-2"><Button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getExportData()], {type: 'application/json'})); a.download = 'backup.json'; a.click(); }} variant="secondary" className="w-full justify-between"><span>{t('saveToFile')}</span><Download size={18}/></Button><input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (ev) => handleMerge(ev.target?.result as string); r.readAsText(f); }}} className="hidden" /><Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>{t('loadFromFile')}</span><Upload size={18}/></Button></div></div>
@@ -490,13 +490,15 @@ const DesktopLayout = () => {
             
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {currentTab === 'notes' ? (
-                    filteredNotes.map(note => (
-                        <div key={note.id} onClick={() => setSelectedNoteId(note.id)} className={`p-3 rounded-xl cursor-pointer border transition-all ${selectedNoteId === note.id ? `${accent.lightBg} ${accent.border}` : `${bgCard} border-transparent hover:border-gray-700`}`}>
-                            <h4 className={`font-bold text-sm truncate ${textMain}`}>{note.title || 'Unbenannt'}</h4>
-                            <p className={`text-xs ${textSec} truncate mt-1`}>{note.content || 'Kein Inhalt'}</p>
-                            <span className={`text-[10px] ${textSec} mt-2 block`}>{note.date}</span>
+                    filteredNotes.map(note => {
+                        const l = labels.find(l => l.id === note.labelId);
+                        return (
+                        <div key={note.id} onClick={() => setSelectedNoteId(note.id)} className={`p-3 rounded-xl cursor-pointer border transition-all ${selectedNoteId === note.id ? `ring-2 ring-${accent.name.split(' ')[0].toLowerCase()}-500 scale-[1.02]` : `hover:border-gray-500 border-transparent`} ${l ? l.color : bgCard}`}>
+                            <h4 className={`font-bold text-sm truncate ${l ? l.textColor : textMain}`}>{note.title || 'Unbenannt'}</h4>
+                            <p className={`text-xs truncate mt-1 ${l ? l.textColor : textSec} opacity-80`}>{note.content || 'Kein Inhalt'}</p>
+                            <span className={`text-[10px] mt-2 block ${l ? l.textColor : textSec} opacity-60`}>{note.date}</span>
                         </div>
-                    ))
+                    )})
                 ) : (
                     tierlists.map(list => (
                         <div key={list.id} onClick={() => setActiveListId(list.id)} className={`p-3 rounded-xl cursor-pointer border transition-all flex justify-between ${activeListId === list.id ? `${accent.lightBg} ${accent.border}` : `${bgCard} border-transparent`}`}>
@@ -547,7 +549,7 @@ const DesktopLayout = () => {
                                         {activeList.items.filter(i => i.tier === tier.id).map(item => (
                                             <div key={item.id} className={`${bgInput} px-4 py-2 rounded-lg shadow border ${border} flex items-center gap-2 group`}>
                                                 <span className="font-medium">{item.name}</span>
-                                                <button onClick={() => setTierlists(prev => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
+                                                <button onClick={() => setTierlists(prev => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
                                             </div>
                                         ))}
                                     </div>
