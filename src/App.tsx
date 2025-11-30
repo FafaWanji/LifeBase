@@ -539,16 +539,61 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
     });
   };
 
+  const mergeAndSave = (incomingData: any) => {
+    try {
+      const currentNotes: Note[] = JSON.parse(localStorage.getItem('lb_notes') || '[]');
+      const currentTierlists: TierList[] = JSON.parse(localStorage.getItem('lb_tierlists') || '[]');
+      const currentLabels: Label[] = JSON.parse(localStorage.getItem('lb_labels') || '[]');
+
+      // Keep existing, add only new ones based on ID
+      const newNotes = incomingData.notes.filter((n: Note) => !currentNotes.some(cn => cn.id === n.id));
+      const newTierlists = incomingData.tierlists.filter((t: TierList) => !currentTierlists.some(ct => ct.id === t.id));
+      // For labels, we also check ID to avoid duplicates
+      const newLabels = incomingData.labels.filter((l: Label) => !currentLabels.some(cl => cl.id === l.id));
+
+      const mergedNotes = [...currentNotes, ...newNotes];
+      const mergedTierlists = [...currentTierlists, ...newTierlists];
+      const mergedLabels = [...currentLabels, ...newLabels];
+
+      localStorage.setItem('lb_notes', JSON.stringify(mergedNotes));
+      localStorage.setItem('lb_tierlists', JSON.stringify(mergedTierlists));
+      localStorage.setItem('lb_labels', JSON.stringify(mergedLabels));
+
+      const count = newNotes.length + newTierlists.length + newLabels.length;
+      alert(`${count} neue Elemente erfolgreich importiert!`);
+      window.location.reload();
+
+    } catch (e) {
+      alert("Fehler beim Zusammenführen der Daten.");
+      console.error(e);
+    }
+  };
+
+  const handleAutoImport = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) {
+        alert("Zwischenablage ist leer oder konnte nicht gelesen werden.");
+        setShowImport(true);
+        return;
+      }
+
+      const data = JSON.parse(text);
+      if (!data.notes && !data.tierlists) throw new Error("Invalid Format");
+
+      mergeAndSave(data);
+
+    } catch (err) {
+      console.error("Auto-Import failed:", err);
+      // Fallback: show the textarea if automatic reading fails (e.g. browser permission)
+      setShowImport(true);
+    }
+  };
+
   const handlePasteImport = () => {
     try {
         const data = JSON.parse(importText);
-        if (confirm("Dies wird deine aktuellen Daten überschreiben. Sicher?")) {
-            if (data.notes) localStorage.setItem('lb_notes', JSON.stringify(data.notes));
-            if (data.tierlists) localStorage.setItem('lb_tierlists', JSON.stringify(data.tierlists));
-            if (data.labels) localStorage.setItem('lb_labels', JSON.stringify(data.labels));
-            alert("Daten erfolgreich importiert!");
-            window.location.reload();
-        }
+        mergeAndSave(data);
     } catch {
         alert("Ungültiges Datenformat.");
     }
@@ -581,6 +626,38 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
     <Modal isOpen={isOpen} onClose={onClose} title="Einstellungen">
       <div className="space-y-8">
         
+        {/* Appearance Section */}
+        <div className="space-y-3">
+           <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Aussehen</h4>
+           <div className={`${bgInput} p-1 rounded-xl flex border ${border}`}>
+              <button 
+                onClick={() => setMode('light')} 
+                className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'light' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-400'}`}
+              >
+                <Sun size={16} /> Hell
+              </button>
+              <button 
+                onClick={() => setMode('dark')} 
+                className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'dark' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-gray-300'}`}
+              >
+                <Moon size={16} /> Dunkel
+              </button>
+           </div>
+
+           <div className="grid grid-cols-3 gap-2">
+              {Object.entries(accents).map(([key, val]) => (
+                <button 
+                  key={key}
+                  onClick={() => setAccentKey(key as AccentKey)}
+                  className={`p-2 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${accentKey === key ? `${val.border} ${val.lightBg}` : `${border} ${bgInput} opacity-70 hover:opacity-100`}`}
+                >
+                  <div className={`w-4 h-4 rounded-full ${val.primary}`}></div>
+                  <span className={`text-[10px] font-bold ${textMain}`}>{val.name}</span>
+                </button>
+              ))}
+           </div>
+        </div>
+
         {/* Quick Sync Section */}
         <div className="space-y-3">
             <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Schnell-Transfer (Zwischenablage)</h4>
@@ -589,24 +666,25 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
                     {copySuccess ? <Check size={18} className="text-green-500"/> : <Copy size={18} />} 
                     {copySuccess ? "Kopiert!" : "Daten kopieren"}
                 </Button>
-                <Button onClick={() => setShowImport(!showImport)} className="flex-1" variant="secondary">
-                    <Clipboard size={18} /> Einfügen...
+                <Button onClick={handleAutoImport} className="flex-1" variant="secondary">
+                    <Clipboard size={18} /> Aus Zwischenablage einfügen
                 </Button>
             </div>
             
             {showImport && (
                 <div className={`p-3 rounded-xl border ${border} ${bgInput} animate-in fade-in slide-in-from-top-2`}>
+                    <p className={`text-[10px] text-red-400 mb-2`}>Automatisches Einfügen nicht möglich. Bitte manuell einfügen:</p>
                     <textarea 
                         value={importText}
                         onChange={(e) => setImportText(e.target.value)}
-                        placeholder="Füge hier den Code vom anderen Gerät ein..."
+                        placeholder="Füge hier den Code ein..."
                         className={`w-full bg-transparent border-0 text-xs ${textMain} h-20 resize-none focus:outline-none mb-2`}
                     />
                     <Button onClick={handlePasteImport} disabled={!importText} className="w-full h-8 text-xs">Importieren</Button>
                 </div>
             )}
             <p className={`text-[10px] ${textSec}`}>
-                Kopiere den Code auf dem PC und sende ihn (z.B. per WhatsApp Web) an dein Handy, um ihn dort einzufügen.
+                Kopiere den Code auf dem PC und drücke auf dem Handy "Einfügen". Bestehende Daten bleiben erhalten.
             </p>
         </div>
 
@@ -616,21 +694,6 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
             <Button onClick={handleFileExport} variant="secondary" className="w-full justify-between"><span>Backup als Datei speichern</span><Download size={18} /></Button>
             <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
             <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>Backup Datei laden</span><Upload size={18} /></Button>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Aussehen</h4>
-          <div className={`${bgInput} p-1 rounded-xl flex border ${border}`}>
-            <button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'light' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-400'}`}><Sun size={16} /> Hell</button>
-            <button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${mode === 'dark' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-gray-300'}`}><Moon size={16} /> Dunkel</button>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {Object.entries(accents).map(([key, val]) => (
-              <button key={key} onClick={() => setAccentKey(key as AccentKey)} className={`p-2 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${accentKey === key ? `${val.border} ${val.lightBg}` : `${border} ${bgInput} opacity-70 hover:opacity-100`}`}>
-                <div className={`w-4 h-4 rounded-full ${val.primary}`}></div><span className={`text-[10px] font-bold ${textMain}`}>{val.name}</span>
-              </button>
-            ))}
           </div>
         </div>
         
