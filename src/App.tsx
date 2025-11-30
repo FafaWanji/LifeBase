@@ -653,6 +653,8 @@ const TierListView: React.FC = () => {
   const [addingToTier, setAddingToTier] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [draggedItem, setDraggedItem] = useState<TierItem | null>(null);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const [touchTarget, setTouchTarget] = useState<string | null>(null);
   const { bgCard, border, textMain, textSec, accent, bgInput, t } = useTheme();
 
   useEffect(() => localStorage.setItem('lb_tierlists', JSON.stringify(lists)), [lists]);
@@ -660,17 +662,48 @@ const TierListView: React.FC = () => {
   const activeList = lists.find(l => l.id === activeListId);
   const tiers = [{ id: 'S', color: 'bg-red-500' }, { id: 'A', color: 'bg-orange-500' }, { id: 'B', color: 'bg-yellow-500' }, { id: 'C', color: 'bg-green-500' }, { id: 'D', color: 'bg-blue-500' }];
 
-  const handleDrop = (e: React.DragEvent, targetTier: string) => {
-    e.preventDefault();
+  const handleDrop = (targetTier: string) => {
     if (!draggedItem || draggedItem.tier === targetTier) return;
     setLists(lists.map(list => list.id === activeListId ? { ...list, items: list.items.map(item => item.id === draggedItem.id ? { ...item, tier: targetTier } : item) } : list));
     setDraggedItem(null);
+    setTouchTarget(null);
+    setDragPosition(null);
   };
 
   const handleAddItem = () => {
     if (!newItemName.trim() || !addingToTier) return;
     setLists(lists.map(list => list.id === activeListId ? { ...list, items: [...list.items, { id: Date.now(), name: newItemName, tier: addingToTier }] } : list));
     setNewItemName(''); setAddingToTier(null);
+  };
+
+  // --- TOUCH HANDLERS ---
+  const handleTouchStart = (e: React.TouchEvent, item: TierItem) => {
+    const touch = e.touches[0];
+    setDraggedItem(item);
+    setDragPosition({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    setDragPosition({ x: touch.clientX, y: touch.clientY });
+    
+    const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+    const tierContainer = targetElement?.closest('[data-tier-id]');
+    
+    if (tierContainer) {
+      setTouchTarget(tierContainer.getAttribute('data-tier-id'));
+    } else {
+      setTouchTarget(null);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTarget) {
+      handleDrop(touchTarget);
+    }
+    setDraggedItem(null);
+    setTouchTarget(null);
+    setDragPosition(null);
   };
 
   if (!activeList) {
@@ -694,18 +727,30 @@ const TierListView: React.FC = () => {
   }
 
   return (
-    <div className="pb-24">
+    <div className="pb-24" onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       <div className="flex items-center gap-2 mb-6"><button onClick={() => setActiveListId(null)} className={`${textSec} hover:${textMain}`}><Menu size={24} /></button><h2 className={`text-xl font-bold ${textMain} flex-1 truncate`}>{activeList.title}</h2></div>
       <div className="space-y-2">
         {tiers.map(tier => (
-          <div key={tier.id} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} onDrop={(e) => handleDrop(e, tier.id)} className={`flex min-h-[80px] ${bgCard} rounded-lg overflow-hidden border ${border} transition-colors hover:border-opacity-50`}>
+          <div 
+            key={tier.id} 
+            data-tier-id={tier.id}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} 
+            onDrop={(e) => { e.preventDefault(); handleDrop(tier.id); }} 
+            className={`flex min-h-[80px] ${bgCard} rounded-lg overflow-hidden border ${border} transition-all duration-200 ${touchTarget === tier.id ? `ring-2 ring-${accent.name.split(' ')[0].toLowerCase()}-500 scale-[1.02] z-10` : ''}`}
+          >
             <div className={`${tier.color} w-14 flex flex-col items-center justify-center flex-shrink-0 gap-1 py-2`}>
               <span className="text-xl font-black text-black/50">{tier.id}</span>
               <button onClick={() => setAddingToTier(tier.id)} className="bg-black/20 hover:bg-black/40 text-white rounded p-0.5 transition-colors"><Plus size={14} /></button>
             </div>
             <div className="p-2 flex-1 flex flex-wrap gap-2 content-start">
               {activeList.items.filter(i => i.tier === tier.id).map(item => (
-                <div key={item.id} draggable onDragStart={(e) => { setDraggedItem(item); e.dataTransfer.effectAllowed = "move"; }} className={`${bgInput} px-3 py-1 rounded text-sm ${textMain} flex items-center gap-2 animate-in zoom-in duration-200 cursor-move shadow-sm border ${border}`}>
+                <div 
+                  key={item.id} 
+                  draggable 
+                  onDragStart={(e) => { setDraggedItem(item); e.dataTransfer.effectAllowed = "move"; }} 
+                  onTouchStart={(e) => handleTouchStart(e, item)}
+                  className={`${bgInput} px-3 py-1 rounded text-sm ${textMain} flex items-center gap-2 shadow-sm border ${border} touch-none ${draggedItem?.id === item.id ? 'opacity-50 scale-110' : ''}`}
+                >
                   <GripVertical size={12} className={textSec} /><span>{item.name}</span>
                   <button onClick={() => setLists(lists.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className={`${textSec} hover:text-red-400 ml-1`}><X size={12} /></button>
                 </div>
@@ -717,6 +762,25 @@ const TierListView: React.FC = () => {
       <Modal isOpen={!!addingToTier} onClose={() => setAddingToTier(null)} title={`${t('addItem')} - ${addingToTier}`}>
         <div className="space-y-4"><Input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder={t('tierItemPlaceholder')} autoFocus /><Button onClick={handleAddItem} className="w-full">{t('addItem')}</Button></div>
       </Modal>
+
+      {/* Floating Ghost Element for Touch Dragging */}
+      {draggedItem && dragPosition && (
+         <div 
+            style={{ 
+                position: 'fixed', 
+                left: dragPosition.x, 
+                top: dragPosition.y, 
+                transform: 'translate(-50%, -150%)', 
+                pointerEvents: 'none', 
+                zIndex: 100,
+                width: 'max-content'
+            }} 
+            className={`${bgCard} border ${border} px-3 py-2 rounded-lg shadow-2xl flex items-center gap-2 opacity-90`}
+         >
+            <GripVertical size={12} className={textSec} />
+            <span className={textMain}>{draggedItem.name}</span>
+         </div>
+       )}
     </div>
   );
 };
