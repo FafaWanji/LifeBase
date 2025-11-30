@@ -245,15 +245,13 @@ const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => (localStorage.getItem('lb_theme_mode') as ThemeMode) || 'dark');
   const [accentKey, setAccentKey] = useState<AccentKey>(() => (localStorage.getItem('lb_theme_accent') as AccentKey) || 'indigo');
   
-  // Language Detection Logic
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem('lb_language');
     if (saved && ['de', 'en', 'tr'].includes(saved)) return saved as Language;
-    
     const browserLang = navigator.language.split('-')[0];
     if (browserLang === 'de') return 'de';
     if (browserLang === 'tr') return 'tr';
-    return 'en'; // Default fallback
+    return 'en';
   });
 
   useEffect(() => {
@@ -305,6 +303,7 @@ const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = ({ classNam
   );
 };
 
+// UPDATED MODAL: Fixes mobile scrolling issues
 const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: ReactNode; customTheme?: { bg: string; text: string } }> = 
 ({ isOpen, onClose, title, children, customTheme }) => {
   const { bgCard, border, textMain, textSec, modalOverlay } = useTheme();
@@ -317,12 +316,14 @@ const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; chi
 
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in duration-200`}>
-      <div className={`${theme.bg} w-full max-w-md rounded-2xl border ${borderClass} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 transition-colors duration-300`}>
-        <div className={`flex items-center justify-between p-4 border-b ${customTheme ? 'border-black/5' : border}`}>
+      <div className={`${theme.bg} w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border ${borderClass} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 transition-colors duration-300`}>
+        {/* Fixed Header */}
+        <div className={`flex-shrink-0 flex items-center justify-between p-4 border-b ${customTheme ? 'border-black/5' : border}`}>
           <h3 className={`text-lg font-bold ${theme.text}`}>{title}</h3>
           <button onClick={onClose} className={closeBtnClass}><X size={20} /></button>
         </div>
-        <div className={`p-4 ${theme.text}`}>{children}</div>
+        {/* Scrollable Content */}
+        <div className={`p-4 overflow-y-auto ${theme.text}`}>{children}</div>
       </div>
     </div>
   );
@@ -497,6 +498,13 @@ const availableColors = [
   { bg: 'bg-teal-200', text: 'text-teal-900', name: 'Türkis' },
 ];
 
+const unlabeledLabel: Label = { 
+  id: 'unlabeled', 
+  name: 'Labellos', 
+  color: 'bg-gray-700', 
+  textColor: 'text-gray-200' 
+};
+
 const NotesView: React.FC = () => {
   const [labels, setLabels] = useState<Label[]>(() => JSON.parse(localStorage.getItem('lb_labels') || JSON.stringify(defaultLabels)));
   const [notes, setNotes] = useState<Note[]>(() => {
@@ -516,13 +524,6 @@ const NotesView: React.FC = () => {
 
   useEffect(() => localStorage.setItem('lb_notes', JSON.stringify(notes)), [notes]);
   useEffect(() => localStorage.setItem('lb_labels', JSON.stringify(labels)), [labels]);
-
-  const unlabeledLabel: Label = { 
-    id: 'unlabeled', 
-    name: t('unlabeled'), 
-    color: 'bg-gray-700', 
-    textColor: 'text-gray-200' 
-  };
 
   const getLabel = (id: string) => {
     if (!id || id === '') return unlabeledLabel;
