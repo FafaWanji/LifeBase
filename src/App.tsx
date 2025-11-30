@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, createContext, useContext, type Rea
 import { 
   StickyNote, List, Plus, Trash2, X, 
   Settings, Menu, GripVertical, Download, Upload, AlertTriangle, 
-  Moon, Sun, Filter, Pencil, Tag
+  Moon, Sun, Filter, Pencil, Tag, Copy, Clipboard, Check
 } from 'lucide-react';
 
 // ==========================================
@@ -105,12 +105,13 @@ const useTheme = () => {
 // 3. UI COMPONENTS (Atomic)
 // ==========================================
 
-const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'ghost' }> = 
+const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'success' }> = 
 ({ children, variant = 'primary', className = '', ...props }) => {
   const { bgCard, textMain, textSec, border, accent } = useTheme();
   const variants = {
     primary: `${accent.primary} text-white shadow-lg hover:opacity-90`,
     secondary: `${bgCard} ${textMain} border ${border} hover:brightness-110`,
+    success: `bg-green-600 text-white shadow-lg hover:opacity-90`,
     danger: "bg-red-500/10 text-red-400 hover:bg-red-500/20",
     ghost: `bg-transparent ${textSec} hover:${textMain} hover:${bgCard}`
   };
@@ -518,19 +519,53 @@ const TierListView: React.FC = () => {
   );
 };
 
-// ... SettingsModal, AppContent, App default export (same as before) ...
+// ==========================================
+// 6. MAIN APP SHELL
+// ==========================================
+
 const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { mode, setMode, accentKey, setAccentKey, bgInput, textMain, textSec, border } = useTheme();
+  const [importText, setImportText] = useState('');
+  const [showImport, setShowImport] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExport = () => {
-    const data: ExportData = { notes: JSON.parse(localStorage.getItem('lb_notes') || '[]'), tierlists: JSON.parse(localStorage.getItem('lb_tierlists') || '[]'), labels: JSON.parse(localStorage.getItem('lb_labels') || '[]'), exportDate: new Date().toISOString(), version: '1.1' };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const getExportData = () => JSON.stringify({ 
+    notes: JSON.parse(localStorage.getItem('lb_notes') || '[]'), 
+    tierlists: JSON.parse(localStorage.getItem('lb_tierlists') || '[]'), 
+    labels: JSON.parse(localStorage.getItem('lb_labels') || '[]'), 
+    exportDate: new Date().toISOString(), version: '1.2' 
+  });
+
+  const handleCopyToClipboard = () => {
+    navigator.clipboard.writeText(getExportData()).then(() => {
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+    });
+  };
+
+  const handlePasteImport = () => {
+    try {
+        const data = JSON.parse(importText);
+        if (confirm("Dies wird deine aktuellen Daten überschreiben. Sicher?")) {
+            if (data.notes) localStorage.setItem('lb_notes', JSON.stringify(data.notes));
+            if (data.tierlists) localStorage.setItem('lb_tierlists', JSON.stringify(data.tierlists));
+            if (data.labels) localStorage.setItem('lb_labels', JSON.stringify(data.labels));
+            alert("Daten erfolgreich importiert!");
+            window.location.reload();
+        }
+    } catch {
+        alert("Ungültiges Datenformat.");
+    }
+  };
+
+  const handleFileExport = () => {
+    const blob = new Blob([getExportData()], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `LifeBase_Backup_${new Date().toISOString().slice(0, 10)}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -550,6 +585,45 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Einstellungen">
       <div className="space-y-8">
+        
+        {/* Quick Sync Section */}
+        <div className="space-y-3">
+            <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Schnell-Transfer (Zwischenablage)</h4>
+            <div className="flex gap-2">
+                <Button onClick={handleCopyToClipboard} className="flex-1" variant="secondary">
+                    {copySuccess ? <Check size={18} className="text-green-500"/> : <Copy size={18} />} 
+                    {copySuccess ? "Kopiert!" : "Daten kopieren"}
+                </Button>
+                <Button onClick={() => setShowImport(!showImport)} className="flex-1" variant="secondary">
+                    <Clipboard size={18} /> Einfügen...
+                </Button>
+            </div>
+            
+            {showImport && (
+                <div className={`p-3 rounded-xl border ${border} ${bgInput} animate-in fade-in slide-in-from-top-2`}>
+                    <textarea 
+                        value={importText}
+                        onChange={(e) => setImportText(e.target.value)}
+                        placeholder="Füge hier den Code vom anderen Gerät ein..."
+                        className={`w-full bg-transparent border-0 text-xs ${textMain} h-20 resize-none focus:outline-none mb-2`}
+                    />
+                    <Button onClick={handlePasteImport} disabled={!importText} className="w-full h-8 text-xs">Importieren</Button>
+                </div>
+            )}
+            <p className={`text-[10px] ${textSec}`}>
+                Kopiere den Code auf dem PC und sende ihn (z.B. per WhatsApp Web) an dein Handy, um ihn dort einzufügen.
+            </p>
+        </div>
+
+        <div className="space-y-3">
+          <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Datei-Backup</h4>
+          <div className="space-y-2">
+            <Button onClick={handleFileExport} variant="secondary" className="w-full justify-between"><span>Backup als Datei speichern</span><Download size={18} /></Button>
+            <input type="file" ref={fileInputRef} onChange={handleFileImport} accept=".json" className="hidden" />
+            <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>Backup Datei laden</span><Upload size={18} /></Button>
+          </div>
+        </div>
+
         <div className="space-y-3">
           <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Aussehen</h4>
           <div className={`${bgInput} p-1 rounded-xl flex border ${border}`}>
@@ -563,17 +637,6 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
               </button>
             ))}
           </div>
-        </div>
-        <div className="space-y-3">
-          <h4 className={`text-xs font-bold ${textSec} uppercase tracking-wider`}>Daten</h4>
-          <div className="space-y-2">
-            <Button onClick={handleExport} variant="secondary" className="w-full justify-between"><span>Backup exportieren</span><Download size={18} /></Button>
-            <input type="file" ref={fileInputRef} onChange={handleImport} accept=".json" className="hidden" />
-            <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>Backup importieren</span><Upload size={18} /></Button>
-          </div>
-        </div>
-        <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex gap-3 items-start">
-          <AlertTriangle className="text-yellow-500 shrink-0" size={20} /><p className="text-xs text-yellow-600 dark:text-yellow-200/80">Daten werden lokal auf diesem Gerät gespeichert. Erstelle regelmäßig Backups.</p>
         </div>
       </div>
     </Modal>
