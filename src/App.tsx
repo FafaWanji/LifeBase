@@ -63,7 +63,7 @@ interface Note {
   id: number;
   title: string;
   content: string;
-  labelId: string; // Verknüpfung zum Label
+  labelId: string;
   date: string;
 }
 
@@ -265,22 +265,31 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  customTheme?: { bg: string; text: string }; // Prop for custom colors
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, customTheme }) => {
   const { bgCard, border, textMain, textSec, modalOverlay } = useTheme();
   
+  // Use custom theme if provided, otherwise default theme
+  const finalBg = customTheme ? customTheme.bg : bgCard;
+  const finalText = customTheme ? customTheme.text : textMain;
+  const finalBorder = customTheme ? 'border-transparent' : border;
+  const closeBtnClass = customTheme 
+    ? `hover:bg-black/10 ${customTheme.text}` 
+    : `${textSec} hover:${textMain}`;
+
   if (!isOpen) return null;
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in duration-200`}>
-      <div className={`${bgCard} w-full max-w-md rounded-2xl border ${border} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200`}>
-        <div className={`flex items-center justify-between p-4 border-b ${border}`}>
-          <h3 className={`text-lg font-bold ${textMain}`}>{title}</h3>
-          <button onClick={onClose} className={`${textSec} hover:${textMain}`}>
+      <div className={`${finalBg} w-full max-w-md rounded-2xl border ${finalBorder} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 transition-colors duration-300`}>
+        <div className={`flex items-center justify-between p-4 border-b ${customTheme ? 'border-black/5' : border}`}>
+          <h3 className={`text-lg font-bold ${finalText}`}>{title}</h3>
+          <button onClick={onClose} className={closeBtnClass}>
             <X size={20} />
           </button>
         </div>
-        <div className="p-4">
+        <div className={`p-4 ${finalText}`}>
           {children}
         </div>
       </div>
@@ -298,7 +307,6 @@ const defaultLabels: Label[] = [
   { id: '5', name: 'Ideen', color: 'bg-purple-200', textColor: 'text-purple-900' },
 ];
 
-// Color definitions for creating new labels
 const availableColors = [
   { bg: 'bg-yellow-200', text: 'text-yellow-900', name: 'Gelb' },
   { bg: 'bg-blue-200', text: 'text-blue-900', name: 'Blau' },
@@ -323,7 +331,7 @@ const NotesView: React.FC = () => {
     const saved = localStorage.getItem('lb_notes');
     let loadedNotes = saved ? JSON.parse(saved) : [];
     
-    // Migration: If note has "color" but no "labelId", try to map it
+    // Migration logic
     return loadedNotes.map((n: any) => {
       if (!n.labelId) {
         const match = defaultLabels.find(l => l.color === n.color);
@@ -336,40 +344,71 @@ const NotesView: React.FC = () => {
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
-  const [currentNote, setCurrentNote] = useState({ title: '', content: '', labelId: '' });
   
-  // State for creating a NEW label inside the manager/modal
+  const [currentNote, setCurrentNote] = useState<{ id?: number; title: string; content: string; labelId: string }>({ 
+    title: '', content: '', labelId: '' 
+  });
+  
   const [newLabelName, setNewLabelName] = useState('');
   const [newLabelColor, setNewLabelColor] = useState(availableColors[0]);
 
-  const { textMain, textSec, bgCard, border, accent, bgInput } = useTheme();
+  const { textMain, textSec, bgCard, border, bgInput } = useTheme();
 
   useEffect(() => localStorage.setItem('lb_notes', JSON.stringify(notes)), [notes]);
   useEffect(() => localStorage.setItem('lb_labels', JSON.stringify(labels)), [labels]);
 
-  const addNote = () => {
+  // Helper to get active label style
+  const activeLabel = labels.find(l => l.id === (currentNote.labelId || labels[0]?.id)) || defaultLabels[0];
+
+  const saveNote = () => {
     if (!currentNote.title.trim() && !currentNote.content.trim()) return;
     
-    // Default to first label if none selected
     const labelIdToUse = currentNote.labelId || labels[0].id;
+    const dateStr = new Date().toLocaleDateString('de-DE');
     
-    setNotes([{ 
-      id: Date.now(), 
-      title: currentNote.title, 
-      content: currentNote.content, 
-      labelId: labelIdToUse,
-      date: new Date().toLocaleDateString('de-DE') 
-    }, ...notes]);
+    if (currentNote.id) {
+        // Edit existing
+        setNotes(notes.map(n => n.id === currentNote.id ? {
+            ...n,
+            title: currentNote.title,
+            content: currentNote.content,
+            labelId: labelIdToUse,
+            date: dateStr
+        } : n));
+    } else {
+        // Create new
+        setNotes([{ 
+          id: Date.now(), 
+          title: currentNote.title, 
+          content: currentNote.content, 
+          labelId: labelIdToUse,
+          date: dateStr
+        }, ...notes]);
+    }
     
     setCurrentNote({ title: '', content: '', labelId: '' });
     setIsModalOpen(false);
   };
 
-  const deleteNote = (id: number) => {
+  const deleteNote = (e: React.MouseEvent, id: number) => {
+    e.stopPropagation(); 
     setNotes(notes.filter(n => n.id !== id));
   };
 
-  // --- Label Management Functions ---
+  const openCreateModal = () => {
+      setCurrentNote({ title: '', content: '', labelId: labels[0].id });
+      setIsModalOpen(true);
+  };
+
+  const openEditModal = (note: Note) => {
+      setCurrentNote({ 
+          id: note.id, 
+          title: note.title, 
+          content: note.content, 
+          labelId: note.labelId 
+      });
+      setIsModalOpen(true);
+  };
 
   const createNewLabel = () => {
     if (!newLabelName.trim()) return;
@@ -385,7 +424,6 @@ const NotesView: React.FC = () => {
     if (isModalOpen) {
        setCurrentNote({ ...currentNote, labelId: newLabel.id });
     }
-    
     setNewLabelName('');
   };
 
@@ -394,21 +432,16 @@ const NotesView: React.FC = () => {
       alert("Ein Label muss mindestens übrig bleiben!");
       return;
     }
-    
-    if (!confirm("Label wirklich löschen? Notizen mit diesem Label werden auf das erste verfügbare Label zurückgesetzt.")) {
-      return;
-    }
+    if (!confirm("Label wirklich löschen?")) return;
 
     const newLabels = labels.filter(l => l.id !== id);
     setLabels(newLabels);
     
-    // Migration: Move notes from deleted label to the first available label
     const fallbackLabelId = newLabels[0].id;
     const updatedNotes = notes.map(n => 
       n.labelId === id ? { ...n, labelId: fallbackLabelId } : n
     );
     setNotes(updatedNotes);
-
     setActiveFilters(activeFilters.filter(fid => fid !== id));
   };
 
@@ -428,17 +461,12 @@ const NotesView: React.FC = () => {
     <div className="space-y-4 pb-24">
       <div className="flex justify-between items-center mb-2">
         <h2 className={`text-2xl font-bold ${textMain}`}>Meine Notizen</h2>
-        <Button onClick={() => {
-          setCurrentNote({ title: '', content: '', labelId: labels[0].id });
-          setIsModalOpen(true);
-        }}>
+        <Button onClick={openCreateModal}>
           <Plus size={20} /> Neu
         </Button>
       </div>
 
-      {/* Filter Bar with Manage Button */}
       <div className="flex gap-2 items-center">
-        {/* Manage Labels Button - Fixed Height h-9 */}
         <button 
             onClick={() => setIsLabelManagerOpen(true)}
             className={`h-9 w-9 flex items-center justify-center rounded-lg border flex-shrink-0 transition-colors ${bgCard} ${border} ${textSec} hover:${textMain}`}
@@ -448,7 +476,6 @@ const NotesView: React.FC = () => {
         </button>
 
         <div className="flex gap-2 overflow-x-auto scrollbar-hide flex-grow items-center">
-            {/* Filter Icon Box - Fixed Height h-9 */}
             <div className={`h-9 w-9 flex items-center justify-center rounded-lg border flex-shrink-0 ${border} ${bgCard}`}>
                 <Filter size={16} className={textSec} />
             </div>
@@ -480,23 +507,22 @@ const NotesView: React.FC = () => {
         )}
         {filteredNotes.map(note => {
           const label = labels.find(l => l.id === note.labelId) || labels[0];
-          
           return (
-            <div key={note.id} className={`${label.color} p-4 rounded-xl shadow-sm flex flex-col min-h-[160px] relative group transition-transform active:scale-95`}>
-              
-              {/* Label Badge */}
+            <div 
+                key={note.id} 
+                onClick={() => openEditModal(note)}
+                className={`${label.color} p-4 rounded-xl shadow-sm flex flex-col min-h-[160px] relative group transition-transform active:scale-95 cursor-pointer`}
+            >
               <div className="flex justify-between items-start mb-2">
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white/30 ${label.textColor}`}>
                     {label.name}
                 </span>
               </div>
-
               <h3 className={`font-bold text-lg mb-1 ${label.textColor} line-clamp-1`}>{note.title}</h3>
               <p className={`text-sm ${label.textColor} opacity-80 line-clamp-4 flex-grow whitespace-pre-wrap`}>{note.content}</p>
-              
               <div className="flex justify-between items-center mt-3">
                 <span className={`text-[10px] ${label.textColor} opacity-60`}>{note.date}</span>
-                <button onClick={() => deleteNote(note.id)} className={`p-2 rounded-full hover:bg-black/10 ${label.textColor}`}>
+                <button onClick={(e) => deleteNote(e, note.id)} className={`p-2 rounded-full hover:bg-black/10 ${label.textColor}`}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -505,30 +531,33 @@ const NotesView: React.FC = () => {
         })}
       </div>
 
-      {/* Create Note Modal */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Neue Notiz">
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        title={currentNote.id ? 'Notiz bearbeiten' : 'Neue Notiz'}
+        customTheme={{ bg: activeLabel.color, text: activeLabel.textColor }}
+      >
         <div className="space-y-4">
-          <Input 
-            value={currentNote.title} 
-            onChange={(v) => setCurrentNote({...currentNote, title: v})} 
-            placeholder="Titel (z.B. Einkaufsliste)" 
+          <input
+            type="text"
+            value={currentNote.title}
+            onChange={(e) => setCurrentNote({...currentNote, title: e.target.value})}
+            placeholder="Titel (z.B. Einkaufsliste)"
+            className={`w-full bg-white/20 border-0 rounded-xl px-4 py-3 ${activeLabel.textColor} placeholder:${activeLabel.textColor}/50 focus:outline-none focus:ring-2 focus:ring-black/10 font-bold text-lg placeholder:font-normal`}
           />
           <textarea
             value={currentNote.content}
             onChange={(e) => setCurrentNote({...currentNote, content: e.target.value})}
             placeholder="Schreibe deine Gedanken..."
-            className={`w-full bg-transparent border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 h-32 resize-none ${useTheme().bgInput} ${useTheme().border} ${useTheme().textMain} ${useTheme().accent.ring}`}
+            className={`w-full bg-white/20 border-0 rounded-xl px-4 py-3 ${activeLabel.textColor} placeholder:${activeLabel.textColor}/50 focus:outline-none focus:ring-2 focus:ring-black/10 h-64 resize-none`}
           />
-
-          {/* Label Selector */}
           <div>
             <div className="flex justify-between items-center mb-2">
-                <span className={`text-xs font-bold uppercase ${textSec}`}>Label wählen</span>
-                <button onClick={() => { setIsLabelManagerOpen(true); }} className={`text-xs ${accent.text} hover:underline`}>
+                <span className={`text-xs font-bold uppercase opacity-60 ${activeLabel.textColor}`}>Label wählen</span>
+                <button onClick={() => { setIsLabelManagerOpen(true); }} className={`text-xs font-bold hover:underline ${activeLabel.textColor}`}>
                     Bearbeiten
                 </button>
             </div>
-
             <div className="flex flex-wrap gap-2">
                 {labels.map(label => (
                     <button
@@ -536,8 +565,8 @@ const NotesView: React.FC = () => {
                         onClick={() => setCurrentNote({...currentNote, labelId: label.id})}
                         className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${
                             currentNote.labelId === label.id 
-                            ? `${label.color} ${label.textColor} border-white/20 shadow-md` 
-                            : `${useTheme().bgInput} ${textSec} border-transparent`
+                            ? `bg-white/40 ${label.textColor} border-black/10 shadow-sm` 
+                            : `bg-transparent ${activeLabel.textColor} border-transparent hover:bg-white/10 opacity-60 hover:opacity-100`
                         }`}
                     >
                         {label.name}
@@ -545,16 +574,17 @@ const NotesView: React.FC = () => {
                 ))}
             </div>
           </div>
-
-          <Button onClick={addNote} className="w-full">Notiz speichern</Button>
+          <Button 
+            onClick={saveNote} 
+            className={`w-full border-0 ${activeLabel.textColor} bg-white/30 hover:bg-white/50 shadow-none`}
+          >
+              {currentNote.id ? 'Speichern' : 'Erstellen'}
+          </Button>
         </div>
       </Modal>
 
-      {/* Label Manager Modal - MOVED BELOW CREATE NOTE MODAL */}
       <Modal isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} title="Labels verwalten">
         <div className="space-y-6">
-            
-            {/* Create New Label Section */}
             <div className={`p-4 rounded-xl border ${border} ${bgInput}`}>
                 <h4 className={`text-xs font-bold uppercase mb-3 ${textSec}`}>Neues Label erstellen</h4>
                 <div className="flex gap-2 mb-3">
@@ -568,7 +598,6 @@ const NotesView: React.FC = () => {
                         <Plus size={18} />
                     </Button>
                 </div>
-                
                 <div className="flex flex-wrap gap-2">
                     {availableColors.map(c => (
                         <button 
@@ -580,8 +609,6 @@ const NotesView: React.FC = () => {
                     ))}
                 </div>
             </div>
-
-            {/* Existing Labels List */}
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                 <h4 className={`text-xs font-bold uppercase ${textSec}`}>Vorhandene Labels</h4>
                 {labels.map(label => (
