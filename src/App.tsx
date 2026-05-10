@@ -97,18 +97,14 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [tierlists, setTierlists] = useState<TierList[]>(() => JSON.parse(localStorage.getItem('lb_tierlists') || '[]'));
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   
-  // Store the direct link to the NAS file (Desktop only)
   const [fileHandle, setFileHandle] = useState<any>(null);
-  
-  // Track when we last saw or wrote to the file to prevent infinite reload loops
   const lastKnownModified = useRef<number>(Date.now());
 
-  // Auto-save to localStorage as a fallback
   useEffect(() => localStorage.setItem('lb_notes', JSON.stringify(notes)), [notes]);
   useEffect(() => localStorage.setItem('lb_labels', JSON.stringify(labels)), [labels]);
   useEffect(() => localStorage.setItem('lb_tierlists', JSON.stringify(tierlists)), [tierlists]);
 
-  // 1. AUTO-SAVE (Push to NAS)
+  // Push to NAS
   useEffect(() => {
     if (!fileHandle) return;
     const saveToNAS = async () => {
@@ -117,7 +113,6 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         await writable.write(JSON.stringify({ notes, tierlists, labels, exportDate: new Date().toISOString() }));
         await writable.close();
         
-        // Update our tracker so we know we caused this modification!
         const updatedFile = await fileHandle.getFile();
         lastKnownModified.current = updatedFile.lastModified;
         
@@ -128,12 +123,11 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       }
     };
     
-    // Wait 1 second after typing stops before saving
     const timer = setTimeout(saveToNAS, 1000);
     return () => clearTimeout(timer);
   }, [notes, labels, tierlists, fileHandle]);
 
-  // 2. AUTO-LOAD (Pull from NAS)
+  // Pull from NAS
   useEffect(() => {
     if (!fileHandle) return;
 
@@ -141,7 +135,6 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       try {
         const file = await fileHandle.getFile();
         
-        // If the file on the NAS has a newer timestamp than our last action...
         if (file.lastModified > lastKnownModified.current) {
           const text = await file.text();
           const data = JSON.parse(text);
@@ -150,16 +143,14 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
           setTierlists(data.tierlists || []);
           setLabels(data.labels || []);
           
-          // Update our tracker so we don't download it again
           lastKnownModified.current = file.lastModified;
           console.log('Auto-Loaded fresh data from Phone/NAS!');
         }
       } catch (e) {
-        console.log('Background sync check failed (File might be temporarily locked).');
+        console.log('Background sync check failed.');
       }
     };
 
-    // Check for new data every 5 seconds
     const interval = setInterval(checkForUpdates, 5000);
     return () => clearInterval(interval);
   }, [fileHandle]);
@@ -400,7 +391,7 @@ const MobileLayout = () => {
       setNewTierItemName(''); setTargetTier(null); setIsTierItemModalOpen(false);
   };
 
-  const handleDrop = (listId: number, tierId: string) => { if(!draggedItem) return; setTierlists((prev: TierList[]) => prev.map(l => l.id === listId ? { ...l, items: l.items.map(i => i.id === draggedItem.id ? { ...i, tier: tierId } : i) } : l)); setDraggedItem(null); setDragPos(null); };
+  const handleDrop = (listId: number, tierId: string) => { if(!draggedItem) return; setTierlists((prev: TierList[]) => prev.map(l => l.id === listId ? { ...l, items: l.items.map((i: TierItem) => i.id === draggedItem.id ? { ...i, tier: tierId } : i) } : l)); setDraggedItem(null); setDragPos(null); };
   const handleTouchMove = (e: React.TouchEvent) => { setDragPos({ x: e.touches[0].clientX, y: e.touches[0].clientY }); const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY); setTouchTarget(el?.closest('[data-tier]')?.getAttribute('data-tier') || null); };
 
   if (activeListId !== null && activeList) {
@@ -414,8 +405,8 @@ const MobileLayout = () => {
                        <div key={tier.id} data-tier={`${activeList.id}-${tier.id}`} className={`flex min-h-[80px] ${bgCard} rounded-lg overflow-hidden border ${border} ${touchTarget === `${activeList.id}-${tier.id}` ? `ring-2 ring-${accent.name.split(' ')[0].toLowerCase()}-500` : ''}`}>
                            <div className={`${tier.color} w-12 flex flex-col items-center justify-center flex-shrink-0 gap-1`}><span className="font-black text-black/50">{tier.id}</span><button onClick={() => { setTargetTier(tier.id); setIsTierItemModalOpen(true); }} className="bg-black/20 rounded text-white p-0.5"><Plus size={14}/></button></div>
                            <div className="flex-1 p-2 flex flex-wrap gap-2 content-start">
-                               {activeList.items.filter(i => i.tier === tier.id).map(item => (
-                                   <div key={item.id} onTouchStart={(e) => { setDraggedItem(item); setDragPos({x: e.touches[0].clientX, y: e.touches[0].clientY}) }} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border} touch-none ${draggedItem?.id === item.id ? 'opacity-30' : ''}`}><span>{item.name}</span><button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400"><X size={12}/></button></div>
+                               {activeList.items.filter((i: TierItem) => i.tier === tier.id).map((item: TierItem) => (
+                                   <div key={item.id} onTouchStart={(e) => { setDraggedItem(item); setDragPos({x: e.touches[0].clientX, y: e.touches[0].clientY}) }} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border} touch-none ${draggedItem?.id === item.id ? 'opacity-30' : ''}`}><span>{item.name}</span><button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter((i: TierItem) => i.id !== item.id) } : l))} className="text-red-400"><X size={12}/></button></div>
                                ))}
                            </div>
                        </div>
@@ -733,7 +724,7 @@ const DesktopLayout = () => {
                                         {activeList.items.filter((i: TierItem) => i.tier === tier.id).map((item: TierItem) => (
                                             <div key={item.id} className={`${bgInput} px-4 py-2 rounded-lg shadow border ${border} flex items-center gap-2 group`}>
                                                 <span className="font-medium">{item.name}</span>
-                                                <button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
+                                                <button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter((i: TierItem) => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
                                             </div>
                                         ))}
                                     </div>
