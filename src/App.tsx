@@ -2,11 +2,24 @@ import React, { useState, useEffect, useRef, createContext, useContext, type Rea
 import { 
   StickyNote, List, Plus, Trash2, X, 
   Settings, Menu, Download, Upload, AlertTriangle, 
-  Moon, Sun, Pencil, Tag, Copy, Clipboard, Check, Search
+  Moon, Sun, Pencil, Tag, Copy, Clipboard, Check, Search, Cloud, CloudOff
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 
 // ==========================================
-// 1. TYPES & LOGIC & STORE
+// 1. CLOUD CONFIGURATION (SAFE VERSION)
+// ==========================================
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL; 
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.error("Missing Supabase Keys! Check your .env file.");
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ==========================================
+// 2. TYPES & LOGIC
 // ==========================================
 
 type ThemeMode = 'dark' | 'light';
@@ -32,7 +45,7 @@ interface DataContextType {
   labels: Label[]; setLabels: React.Dispatch<React.SetStateAction<Label[]>>;
   activeFilters: string[]; setActiveFilters: React.Dispatch<React.SetStateAction<string[]>>;
   toggleFilter: (id: string) => void;
-  fileHandle?: any; setFileHandle?: React.Dispatch<React.SetStateAction<any>>;
+  syncStatus: 'synced' | 'syncing' | 'error';
 }
 
 const defaultLabels: Label[] = [
@@ -55,9 +68,9 @@ const availableColors = [
 ];
 
 const dictionary: Record<Language, Record<string, string>> = {
-  de: { appTitle: "LifeBase", navNotes: "Notizen", navTiers: "Rankings", myNotes: "Meine Notizen", new: "Neu", noNotes: "Keine Notizen.", editNote: "Bearbeiten", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt...", selectLabel: "Label", edit: "Ändern", noLabel: "Kein Label", save: "Speichern", create: "Erstellen", manageLabels: "Labels", newLabel: "Neu", labelNamePlaceholder: "Name", existingLabels: "Vorhandene", deleteLabelConfirm: "Löschen?", deleteLabelError: "Min. 1 Label!", myTierLists: "Rankings", noTierLists: "Keine Listen.", itemsCount: "Einträge", newTierList: "Neue Liste", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Dazu", settings: "Einstellungen", appearance: "Design", light: "Hell", dark: "Dunkel", language: "Sprache", quickSync: "Sync", copyData: "Kopieren", copied: "Kopiert", pasteFromClipboard: "Einfügen", pastePlaceholder: "Code...", import: "Import", syncInfo: "Code kopieren & am anderen Gerät einfügen.", backup: "Backup", saveToFile: "Speichern", loadFromFile: "Laden", dataInfo: "Lokal gespeichert.", overwriteConfirm: "Überschreiben?", importSuccess: "Erfolg!", importError: "Fehler.", autoImportError: "Manuell einfügen:", mergeSuccess: "Neu importiert:", unlabeled: "Labellos", dashboard: "Übersicht", labels: "Labels" },
-  en: { appTitle: "LifeBase", navNotes: "Notes", navTiers: "Rankings", myNotes: "My Notes", new: "New", noNotes: "No notes.", editNote: "Edit", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content...", selectLabel: "Label", edit: "Edit", noLabel: "None", save: "Save", create: "Create", manageLabels: "Labels", newLabel: "New", labelNamePlaceholder: "Name", existingLabels: "Existing", deleteLabelConfirm: "Delete?", deleteLabelError: "Min 1 label!", myTierLists: "Rankings", noTierLists: "No lists.", itemsCount: "items", newTierList: "New List", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Add", settings: "Settings", appearance: "Design", light: "Light", dark: "Dark", language: "Language", quickSync: "Sync", copyData: "Copy", copied: "Copied", pasteFromClipboard: "Paste", pastePlaceholder: "Code...", import: "Import", syncInfo: "Copy code and paste on other device.", backup: "Backup", saveToFile: "Save", loadFromFile: "Load", dataInfo: "Stored locally.", overwriteConfirm: "Overwrite?", importSuccess: "Success!", importError: "Error.", autoImportError: "Paste manually:", mergeSuccess: "Imported:", unlabeled: "Unlabeled", dashboard: "Dashboard", labels: "Labels" },
-  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTiers: "Sıralama", myNotes: "Notlarım", new: "Yeni", noNotes: "Not yok.", editNote: "Düzenle", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik...", selectLabel: "Etiket", edit: "Düzenle", noLabel: "Yok", save: "Kaydet", create: "Oluştur", manageLabels: "Etiketler", newLabel: "Yeni", labelNamePlaceholder: "İsim", existingLabels: "Mevcut", deleteLabelConfirm: "Sil?", deleteLabelError: "En az 1!", myTierLists: "Listeler", noTierLists: "Liste yok.", itemsCount: "öğe", newTierList: "Yeni Liste", tierListNamePlaceholder: "İsim", tierItemPlaceholder: "İsim", addItem: "Ekle", settings: "Ayarlar", appearance: "Görünüm", light: "Açık", dark: "Koyu", language: "Dil", quickSync: "Senk", copyData: "Kopyala", copied: "Kopyalandı", pasteFromClipboard: "Yapıştır", pastePlaceholder: "Kod...", import: "İçe Aktar", syncInfo: "Kopyala ve diğer cihazda yapıştır.", backup: "Yedek", saveToFile: "Kaydet", loadFromFile: "Yükle", dataInfo: "Yerel kayıt.", overwriteConfirm: "Üzerine yaz?", importSuccess: "Başarılı!", importError: "Hata.", autoImportError: "Manuel yapıştır:", mergeSuccess: "Eklendi:", unlabeled: "Etiketsiz", dashboard: "Panel", labels: "Etiketler" }
+  de: { appTitle: "LifeBase", navNotes: "Notizen", navTiers: "Rankings", myNotes: "Meine Notizen", new: "Neu", noNotes: "Keine Notizen.", editNote: "Bearbeiten", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt...", selectLabel: "Label", edit: "Ändern", noLabel: "Kein Label", save: "Speichern", create: "Erstellen", manageLabels: "Labels", newLabel: "Neu", labelNamePlaceholder: "Name", existingLabels: "Vorhandene", deleteLabelConfirm: "Löschen?", deleteLabelError: "Min. 1 Label!", myTierLists: "Rankings", noTierLists: "Keine Listen.", itemsCount: "Einträge", newTierList: "Neue Liste", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Dazu", settings: "Einstellungen", appearance: "Design", light: "Hell", dark: "Dunkel", language: "Sprache", quickSync: "Sync", copyData: "Kopieren", copied: "Kopiert", pasteFromClipboard: "Einfügen", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud-Synchronisierung ist aktiv.", backup: "Backup", saveToFile: "Speichern", loadFromFile: "Laden", dataInfo: "Daten in Supabase Cloud gespeichert.", overwriteConfirm: "Überschreiben?", importSuccess: "Erfolg!", importError: "Fehler.", autoImportError: "Manuell einfügen:", mergeSuccess: "Neu importiert:", unlabeled: "Labellos", dashboard: "Übersicht", labels: "Labels" },
+  en: { appTitle: "LifeBase", navNotes: "Notes", navTiers: "Rankings", myNotes: "My Notes", new: "New", noNotes: "No notes.", editNote: "Edit", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content...", selectLabel: "Label", edit: "Edit", noLabel: "None", save: "Save", create: "Create", manageLabels: "Labels", newLabel: "New", labelNamePlaceholder: "Name", existingLabels: "Existing", deleteLabelConfirm: "Delete?", deleteLabelError: "Min 1 label!", myTierLists: "Rankings", noTierLists: "No lists.", itemsCount: "items", newTierList: "New List", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Add", settings: "Settings", appearance: "Design", light: "Light", dark: "Dark", language: "Language", quickSync: "Sync", copyData: "Copy", copied: "Copied", pasteFromClipboard: "Paste", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud Sync is active.", backup: "Backup", saveToFile: "Save", loadFromFile: "Load", dataInfo: "Stored in Supabase Cloud.", overwriteConfirm: "Overwrite?", importSuccess: "Success!", importError: "Error.", autoImportError: "Paste manually:", mergeSuccess: "Imported:", unlabeled: "Unlabeled", dashboard: "Dashboard", labels: "Labels" },
+  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTiers: "Sıralama", myNotes: "Notlarım", new: "Yeni", noNotes: "Not yok.", editNote: "Düzenle", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik...", selectLabel: "Etiket", edit: "Düzenle", noLabel: "Yok", save: "Kaydet", create: "Oluştur", manageLabels: "Etiketler", newLabel: "Yeni", labelNamePlaceholder: "İsim", existingLabels: "Mevcut", deleteLabelConfirm: "Sil?", deleteLabelError: "En az 1!", myTierLists: "Listeler", noTierLists: "Liste yok.", itemsCount: "öğe", newTierList: "Yeni Liste", tierListNamePlaceholder: "İsim", tierItemPlaceholder: "İsim", addItem: "Ekle", settings: "Ayarlar", appearance: "Görünüm", light: "Açık", dark: "Koyu", language: "Dil", quickSync: "Senk", copyData: "Kopyala", copied: "Kopyalandı", pasteFromClipboard: "Yapıştır", pastePlaceholder: "Kod...", import: "İçe Aktar", syncInfo: "Bulut senkronizasyonu aktif.", backup: "Yedek", saveToFile: "Kaydet", loadFromFile: "Yükle", dataInfo: "Supabase Cloud'da kayıtlı.", overwriteConfirm: "Üzerine yaz?", importSuccess: "Başarılı!", importError: "Hata.", autoImportError: "Manuel yapıştır:", mergeSuccess: "Eklendi:", unlabeled: "Etiketsiz", dashboard: "Panel", labels: "Etiketler" }
 };
 
 const themes: Record<ThemeMode, Omit<ThemeContextType, 'accent' | 'mode' | 'setMode' | 'accentKey' | 'setAccentKey' | 'language' | 'setLanguage' | 't'>> = {
@@ -74,8 +87,19 @@ const accents: Record<AccentKey, AccentProfile> = {
   violet: { name: 'Violet', primary: 'bg-violet-600', hover: 'hover:bg-violet-700', text: 'text-violet-500', ring: 'focus:ring-violet-500', lightBg: 'bg-violet-500/20', border: 'border-violet-500', gradient: 'from-violet-500 to-fuchsia-600' }
 };
 
+// ==========================================
+// 3. CONTEXTS
+// ==========================================
+
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const DataContext = createContext<DataContextType | undefined>(undefined);
+
+const useTheme = () => { const c = useContext(ThemeContext); if (!c) throw new Error('useTheme missing'); return c; };
+const useData = () => { const c = useContext(DataContext); if (!c) throw new Error('useData missing'); return c; };
+
+// ==========================================
+// 4. PROVIDERS
+// ==========================================
 
 const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => (localStorage.getItem('lb_theme_mode') as ThemeMode) || 'dark');
@@ -92,87 +116,71 @@ const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 };
 
 const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [labels, setLabels] = useState<Label[]>(() => JSON.parse(localStorage.getItem('lb_labels') || JSON.stringify(defaultLabels)));
-  const [notes, setNotes] = useState<Note[]>(() => JSON.parse(localStorage.getItem('lb_notes') || '[]'));
-  const [tierlists, setTierlists] = useState<TierList[]>(() => JSON.parse(localStorage.getItem('lb_tierlists') || '[]'));
+  const [labels, setLabels] = useState<Label[]>(defaultLabels);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [tierlists, setTierlists] = useState<TierList[]>([]);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
-  
-  const [fileHandle, setFileHandle] = useState<any>(null);
-  const lastKnownModified = useRef<number>(Date.now());
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+  const isInitialLoad = useRef(true);
 
-  useEffect(() => localStorage.setItem('lb_notes', JSON.stringify(notes)), [notes]);
-  useEffect(() => localStorage.setItem('lb_labels', JSON.stringify(labels)), [labels]);
-  useEffect(() => localStorage.setItem('lb_tierlists', JSON.stringify(tierlists)), [tierlists]);
-
-  // Push to NAS
+  // Cloud Pull
   useEffect(() => {
-    if (!fileHandle) return;
-    const saveToNAS = async () => {
+    const fetchData = async () => {
+      setSyncStatus('syncing');
       try {
-        const writable = await fileHandle.createWritable();
-        await writable.write(JSON.stringify({ notes, tierlists, labels, exportDate: new Date().toISOString() }));
-        await writable.close();
-        
-        const updatedFile = await fileHandle.getFile();
-        lastKnownModified.current = updatedFile.lastModified;
-        
-        console.log('Auto-saved to NAS!');
-      } catch (e) {
-        console.error('Failed to write to NAS file', e);
-        // Only alert if it's a real failure, not just a background DOM exception
-        if (e instanceof Error && e.name !== 'DOMException') {
-            alert('Error: Could not save to NAS. Is the file locked or network down?');
-        }
-      }
-    };
-    
-    const timer = setTimeout(saveToNAS, 1000);
-    return () => clearTimeout(timer);
-  }, [notes, labels, tierlists, fileHandle]);
-
-  // Pull from NAS
-  useEffect(() => {
-    if (!fileHandle) return;
-
-    const checkForUpdates = async () => {
-      try {
-        const file = await fileHandle.getFile();
-        
-        if (file.lastModified > lastKnownModified.current) {
-          const text = await file.text();
-          const data = JSON.parse(text);
-          
+        const { data, error } = await supabase.from('app_data').select('*').eq('id', 1).single();
+        if (data && !error) {
+          setLabels(data.labels || defaultLabels);
           setNotes(data.notes || []);
           setTierlists(data.tierlists || []);
-          setLabels(data.labels || []);
-          
-          lastKnownModified.current = file.lastModified;
-          console.log('Auto-Loaded fresh data from Phone/NAS!');
-        }
-      } catch (e) {
-        console.log('Background sync check failed.');
-      }
+          setSyncStatus('synced');
+        } else setSyncStatus('error');
+      } catch { setSyncStatus('error'); }
+      isInitialLoad.current = false;
     };
+    fetchData();
+  }, []);
 
-    const interval = setInterval(checkForUpdates, 5000);
-    return () => clearInterval(interval);
-  }, [fileHandle]);
+  // Cloud Real-time Listener
+  useEffect(() => {
+    const channel = supabase.channel('db-sync').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data' }, (payload) => {
+      setLabels(payload.new.labels);
+      setNotes(payload.new.notes);
+      setTierlists(payload.new.tierlists);
+    }).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // Cloud Auto-save
+  useEffect(() => {
+    if (isInitialLoad.current) return;
+    const save = async () => {
+      setSyncStatus('syncing');
+      const { error } = await supabase.from('app_data').update({ notes, labels, tierlists, updated_at: new Date().toISOString() }).eq('id', 1);
+      setSyncStatus(error ? 'error' : 'synced');
+    };
+    const timer = setTimeout(save, 1000);
+    return () => clearTimeout(timer);
+  }, [notes, labels, tierlists]);
 
   const toggleFilter = (id: string) => setActiveFilters(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
   
   return (
-    <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, fileHandle, setFileHandle } as any}>
+    <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus }}>
       {children}
     </DataContext.Provider>
   );
 };
 
-const useTheme = () => { const c = useContext(ThemeContext); if (!c) throw new Error('useTheme missing'); return c; };
-const useData = () => { const c = useContext(DataContext); if (!c) throw new Error('useData missing'); return c; };
+// ==========================================
+// 5. SHARED COMPONENTS
+// ==========================================
 
-// ==========================================
-// 2. SHARED COMPONENTS
-// ==========================================
+const SyncIndicator = () => {
+  const { syncStatus } = useData();
+  if (syncStatus === 'syncing') return <div className="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full" />;
+  return syncStatus === 'error' ? <CloudOff className="text-red-500" size={18} /> : <Cloud className="text-green-500" size={18} />;
+};
 
 const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'success' }> = ({ children, variant = 'primary', className = '', ...props }) => {
   const { bgCard, textMain, textSec, border, accent } = useTheme();
@@ -185,22 +193,13 @@ const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => 
   return <input className={`w-full ${bgInput} border ${border} rounded-xl px-4 py-3 ${textMain} placeholder:${textSec} focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all ${props.className}`} {...props} />;
 };
 
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-  customTheme?: { bg: string; text: string };
-}
-
+interface ModalProps { isOpen: boolean; onClose: () => void; title: string; children: ReactNode; customTheme?: { bg: string; text: string }; }
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, customTheme }) => {
   const { bgCard, border, textMain, textSec, modalOverlay } = useTheme();
-  
   const finalBg = customTheme ? customTheme.bg : bgCard;
   const finalText = customTheme ? customTheme.text : textMain;
   const finalBorder = customTheme ? 'border-transparent' : border;
   const closeBtnClass = customTheme ? `hover:bg-black/10 ${customTheme.text}` : `${textSec} hover:${textMain}`;
-
   if (!isOpen) return null;
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in duration-200`}>
@@ -249,53 +248,41 @@ const FlagTR = () => <svg viewBox="0 0 1200 800" className="w-6 h-6 rounded over
 const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { mode, setMode, bgInput, textMain, textSec, border, language, setLanguage, t } = useTheme();
   const { notes, tierlists, labels, setNotes, setTierlists, setLabels } = useData();
-  const [copySuccess, setCopySuccess] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [importText, setImportText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getExportData = () => JSON.stringify({ notes, tierlists, labels, exportDate: new Date().toISOString(), version: '1.2' });
-  const handleMerge = (text: string) => {
+  const getExportData = () => JSON.stringify({ notes, tierlists, labels, exportDate: new Date().toISOString() });
+  const handleImport = (text: string) => {
     try {
       const d = JSON.parse(text);
-      const newNotes = d.notes.filter((n: Note) => !notes.some(cn => cn.id === n.id));
-      setNotes([...notes, ...newNotes]);
-      setTierlists([...tierlists, ...(d.tierlists.filter((t: any) => !tierlists.some(ct => ct.id === t.id)))]);
-      setLabels([...labels, ...(d.labels.filter((l: any) => !labels.some(cl => cl.id === l.id)))]);
-      alert(`${newNotes.length} ${t('mergeSuccess')}`); window.location.reload();
+      setNotes(d.notes || []); setTierlists(d.tierlists || []); setLabels(d.labels || defaultLabels);
+      alert(t('importSuccess')); window.location.reload();
     } catch { alert(t('importError')); }
   };
-  const handlePasteImport = () => { try { handleMerge(importText); } catch { alert(t('importError')); } };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('settings')}>
       <div className="space-y-8">
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('appearance')}</h4><div className={`${bgInput} p-1 rounded-xl flex border ${border}`}><button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'light' ? 'bg-white text-black' : 'text-gray-500'}`}><Sun size={16}/>{t('light')}</button><button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'dark' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}><Moon size={16}/>{t('dark')}</button></div></div>
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <button key={l} onClick={() => setLanguage(l as any)} className={`flex-1 py-3 rounded-xl border-2 flex justify-center ${language === l ? border : 'border-transparent'}`}>{l === 'de' ? <FlagDE/> : l === 'en' ? <FlagEN/> : <FlagTR/>}</button>)}</div></div>
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('quickSync')}</h4><div className="flex gap-2"><Button onClick={() => { navigator.clipboard.writeText(getExportData()).then(() => { setCopySuccess(true); setTimeout(() => setCopySuccess(false), 2000); }) }} className="flex-1" variant="secondary">{copySuccess ? <Check size={18}/> : <Copy size={18}/>} {copySuccess ? t('copied') : t('copyData')}</Button><Button onClick={async () => { try { handleMerge(await navigator.clipboard.readText()); } catch { setShowImport(true); }}} className="flex-1" variant="secondary"><Clipboard size={18}/> {t('pasteFromClipboard')}</Button></div>{showImport && <div className={`p-3 rounded-xl border ${border} ${bgInput}`}><textarea value={importText} onChange={e => setImportText(e.target.value)} placeholder={t('pastePlaceholder')} className={`w-full bg-transparent border-0 text-xs ${textMain} h-20 resize-none outline-none mb-2`} /><Button onClick={handlePasteImport} className="w-full h-8 text-xs">{t('import')}</Button></div>}<p className={`text-[10px] ${textSec}`}>{t('syncInfo')}</p></div>
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('backup')}</h4><div className="space-y-2"><Button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getExportData()], {type: 'application/json'})); a.download = 'backup.json'; a.click(); }} variant="secondary" className="w-full justify-between"><span>{t('saveToFile')}</span><Download size={18}/></Button><input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (ev) => handleMerge(ev.target?.result as string); r.readAsText(f); }}} className="hidden" /><Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>{t('loadFromFile')}</span><Upload size={18}/></Button></div></div>
-         <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl flex gap-3 items-start"><AlertTriangle className="text-yellow-500 shrink-0" size={20} /><p className="text-xs text-yellow-600 dark:text-yellow-200/80">{t('dataInfo')}</p></div>
+         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('backup')}</h4><div className="space-y-2"><Button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getExportData()], {type: 'application/json'})); a.download = 'lifebase_backup.json'; a.click(); }} variant="secondary" className="w-full justify-between"><span>{t('saveToFile')}</span><Download size={18}/></Button><input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (ev) => handleImport(ev.target?.result as string); r.readAsText(f); }}} className="hidden" /><Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>{t('loadFromFile')}</span><Upload size={18}/></Button></div></div>
+         <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl flex gap-3 items-start"><Cloud className="text-indigo-500 shrink-0" size={20} /><p className="text-xs text-indigo-600 dark:text-indigo-200/80">{t('dataInfo')}</p></div>
       </div>
     </Modal>
   );
 };
 
 // ==========================================
-// 3. LAYOUTS
+// 6. LAYOUTS
 // ==========================================
 
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
-  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData() as any;
+  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData();
   const [currentTab, setCurrentTab] = useState<'notes' | 'tierlist'>('notes');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
-  // Note States
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [currentNote, setCurrentNote] = useState<Partial<Note>>({});
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
-
-  // Tier States
   const [isTierListModalOpen, setIsTierListModalOpen] = useState(false);
   const [isTierItemModalOpen, setIsTierItemModalOpen] = useState(false);
   const [activeListId, setActiveListId] = useState<number | null>(null);
@@ -312,69 +299,16 @@ const MobileLayout = () => {
   const activeList = tierlists.find((l: TierList) => l.id === activeListId);
   const tiers = [{ id: 'S', color: 'bg-red-500' }, { id: 'A', color: 'bg-orange-500' }, { id: 'B', color: 'bg-yellow-500' }, { id: 'C', color: 'bg-green-500' }, { id: 'D', color: 'bg-blue-500' }];
 
-  const handleQuickSync = () => {
-    try {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = '.json';
-      input.onchange = (e: any) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        
-        reader.onload = (ev) => {
-          try {
-            const text = ev.target?.result as string;
-            
-            // Check if file is completely empty
-            if (!text || text.trim() === '') {
-              alert('Import Failed: The selected file is completely empty. The PC might have saved a blank file.');
-              return;
-            }
-            
-            const data = JSON.parse(text);
-            
-            // Ensure data structure exists
-            if (!data || typeof data !== 'object') {
-                alert('Import Failed: File does not contain valid LifeBase data.');
-                return;
-            }
-
-            setNotes(data.notes || []);
-            setTierlists(data.tierlists || []);
-            setLabels(data.labels || []);
-            alert('Data Imported from NAS successfully!');
-          } catch (err: any) {
-            // Enhanced error tracking
-            const preview = String(ev.target?.result).substring(0, 40);
-            alert(`Parsing Error: ${err.message}\n\nFile preview: ${preview}...`);
-          }
-        };
-
-        reader.onerror = () => {
-            alert("Error: Android failed to read the file from the network drive. Check file permissions.");
-        };
-
-        reader.readAsText(file);
-      };
-      input.click();
-    } catch (e: any) {
-      console.error(e);
-      alert('Error triggering file picker: ' + e.message);
-    }
-  };
-
   const saveNote = () => {
       if(!currentNote.title && !currentNote.content) return;
       const date = new Date().toLocaleDateString();
-      if(currentNote.id) setNotes((prev: Note[]) => prev.map(n => n.id === currentNote.id ? { ...n, ...currentNote, date } as Note : n));
-      else setNotes([{ id: Date.now(), ...currentNote, labelId: currentNote.labelId || '', date } as Note, ...notes]);
+      if(currentNote.id) setNotes((prev) => prev.map(n => n.id === currentNote.id ? { ...n, ...currentNote, date } as Note : n));
+      else setNotes([{ id: Date.now(), title: currentNote.title || '', content: currentNote.content || '', labelId: currentNote.labelId || '', date } as Note, ...notes]);
       setIsNoteModalOpen(false);
   };
 
   const handleUpdateLabel = (id: string, name: string, color: typeof availableColors[0]) => {
-    setLabels((labels: Label[]) => labels.map(l => l.id === id ? { ...l, name, color: color.bg, textColor: color.text } : l));
+    setLabels((prev) => prev.map(l => l.id === id ? { ...l, name, color: color.bg, textColor: color.text } : l));
   };
 
   const handleCreateLabel = (name: string, color: typeof availableColors[0]) => {
@@ -383,10 +317,9 @@ const MobileLayout = () => {
   };
 
   const handleDeleteLabel = (id: string) => {
-    if (!confirm(t('deleteLabelConfirm'))) return;
-    const newLabels = labels.filter((l: Label) => l.id !== id);
+    const newLabels = labels.filter((l) => l.id !== id);
     setLabels(newLabels);
-    setNotes((notes: Note[]) => notes.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
+    setNotes((prev) => prev.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
   };
 
   const createTierList = () => {
@@ -397,11 +330,11 @@ const MobileLayout = () => {
 
   const addTierItem = () => {
       if(!newTierItemName.trim() || !targetTier) return;
-      setTierlists((prev: TierList[]) => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: targetTier }] } : l));
+      setTierlists((prev) => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: targetTier }] } : l));
       setNewTierItemName(''); setTargetTier(null); setIsTierItemModalOpen(false);
   };
 
-  const handleDrop = (listId: number, tierId: string) => { if(!draggedItem) return; setTierlists((prev: TierList[]) => prev.map(l => l.id === listId ? { ...l, items: l.items.map((i: TierItem) => i.id === draggedItem.id ? { ...i, tier: tierId } : i) } : l)); setDraggedItem(null); setDragPos(null); };
+  const handleDrop = (listId: number, tierId: string) => { if(!draggedItem) return; setTierlists((prev) => prev.map(l => l.id === listId ? { ...l, items: l.items.map((i) => i.id === draggedItem.id ? { ...i, tier: tierId } : i) } : l)); setDraggedItem(null); setDragPos(null); };
   const handleTouchMove = (e: React.TouchEvent) => { setDragPos({ x: e.touches[0].clientX, y: e.touches[0].clientY }); const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY); setTouchTarget(el?.closest('[data-tier]')?.getAttribute('data-tier') || null); };
 
   if (activeListId !== null && activeList) {
@@ -409,14 +342,15 @@ const MobileLayout = () => {
           <div className={`min-h-screen ${bgMain} ${textMain} pb-safe font-sans flex flex-col`} onTouchMove={draggedItem ? handleTouchMove : undefined} onTouchEnd={() => { if(touchTarget) handleDrop(parseInt(touchTarget.split('-')[0]), touchTarget.split('-')[1]); setDraggedItem(null); }}>
                <header className={`${bgMain}/90 backdrop-blur-md sticky top-0 z-10 border-b ${border} px-4 py-3 flex justify-between items-center`}>
                  <div className="flex items-center gap-3"><button onClick={() => setActiveListId(null)} className={`${textSec} hover:${textMain}`}><Menu size={24}/></button><h1 className={`text-lg font-bold tracking-tight ${textMain}`}>{activeList.title}</h1></div>
+                 <SyncIndicator />
                </header>
                <div className="p-4 space-y-2 overflow-y-auto">
                    {tiers.map(tier => (
-                       <div key={tier.id} data-tier={`${activeList.id}-${tier.id}`} className={`flex min-h-[80px] ${bgCard} rounded-lg overflow-hidden border ${border} ${touchTarget === `${activeList.id}-${tier.id}` ? `ring-2 ring-${accent.name.split(' ')[0].toLowerCase()}-500` : ''}`}>
+                       <div key={tier.id} data-tier={`${activeList.id}-${tier.id}`} className={`flex min-h-[80px] ${bgCard} rounded-lg overflow-hidden border ${border} ${touchTarget === `${activeList.id}-${tier.id}` ? `ring-2 ring-indigo-500` : ''}`}>
                            <div className={`${tier.color} w-12 flex flex-col items-center justify-center flex-shrink-0 gap-1`}><span className="font-black text-black/50">{tier.id}</span><button onClick={() => { setTargetTier(tier.id); setIsTierItemModalOpen(true); }} className="bg-black/20 rounded text-white p-0.5"><Plus size={14}/></button></div>
                            <div className="flex-1 p-2 flex flex-wrap gap-2 content-start">
-                               {activeList.items.filter((i: TierItem) => i.tier === tier.id).map((item: TierItem) => (
-                                   <div key={item.id} onTouchStart={(e) => { setDraggedItem(item); setDragPos({x: e.touches[0].clientX, y: e.touches[0].clientY}) }} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border} touch-none ${draggedItem?.id === item.id ? 'opacity-30' : ''}`}><span>{item.name}</span><button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter((i: TierItem) => i.id !== item.id) } : l))} className="text-red-400"><X size={12}/></button></div>
+                               {activeList.items.filter(i => i.tier === tier.id).map(item => (
+                                   <div key={item.id} onTouchStart={(e) => { setDraggedItem(item); setDragPos({x: e.touches[0].clientX, y: e.touches[0].clientY}) }} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border} touch-none ${draggedItem?.id === item.id ? 'opacity-30' : ''}`}><span>{item.name}</span><button onClick={() => setTierlists((prev) => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400"><X size={12}/></button></div>
                                ))}
                            </div>
                        </div>
@@ -434,13 +368,8 @@ const MobileLayout = () => {
     <div className={`min-h-screen ${bgMain} ${textMain} pb-safe font-sans flex flex-col`}>
        <header className={`${bgMain}/90 backdrop-blur-md sticky top-0 z-10 border-b ${border} px-4 py-3 flex justify-between items-center`}>
          <div className="flex items-center gap-3"><div className={`w-8 h-8 bg-gradient-to-br ${accent.gradient} rounded-lg flex items-center justify-center font-bold text-white shadow-lg`}>LB</div><h1 className={`text-lg font-bold tracking-tight ${textMain}`}>{t('appTitle')}</h1></div>
-         
          <div className="flex items-center gap-4">
-           {/* MOBILE SPECIFIC BUTTON */}
-           <button onClick={handleQuickSync} className={`${textSec} hover:${textMain} flex items-center gap-1`}>
-             <Download size={20} />
-             <span className="text-xs font-bold">Import</span>
-           </button>
+           <SyncIndicator />
            <button onClick={() => setIsSettingsOpen(true)} className={`${textSec} hover:${textMain}`}><Settings size={24} /></button>
          </div>
        </header>
@@ -454,7 +383,7 @@ const MobileLayout = () => {
                      {labels.map((l: Label) => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`h-9 px-3 rounded-lg border whitespace-nowrap ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor : 'border-transparent'}`}>{l.name}</button>)}
                  </div>
                  <div className="grid grid-cols-2 gap-4">
-                    {filteredNotes.map((n: Note) => <NoteCard key={n.id} note={n} label={labels.find((l: Label) => l.id === n.labelId) || { id: 'u', name: t('unlabeled'), color: 'bg-gray-700', textColor: 'text-gray-200'}} onClick={() => { setCurrentNote(n); setIsNoteModalOpen(true); }} onDelete={(e) => { e.stopPropagation(); setNotes((prev: Note[]) => prev.filter(x => x.id !== n.id)); }} />)}
+                    {filteredNotes.map((n: Note) => <NoteCard key={n.id} note={n} label={labels.find((l) => l.id === n.labelId) || { id: 'u', name: t('unlabeled'), color: 'bg-gray-700', textColor: 'text-gray-200'}} onClick={() => { setCurrentNote(n); setIsNoteModalOpen(true); }} onDelete={(e) => { e.stopPropagation(); setNotes((prev) => prev.filter(x => x.id !== n.id)); }} />)}
                  </div>
                  <button onClick={() => { setCurrentNote({}); setIsNoteModalOpen(true); }} className={`fixed bottom-24 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-lg flex items-center justify-center`}><Plus size={28}/></button>
              </div>
@@ -464,7 +393,7 @@ const MobileLayout = () => {
                 {tierlists.map((t: TierList) => (
                     <div key={t.id} onClick={() => setActiveListId(t.id)} className={`${bgCard} p-4 rounded-xl border ${border} flex justify-between items-center`}>
                         <span className="font-bold">{t.title}</span>
-                        <button onClick={(e) => { e.stopPropagation(); setTierlists((prev: TierList[]) => prev.filter(l => l.id !== t.id)); }} className="text-red-400"><Trash2 size={18}/></button>
+                        <button onClick={(e) => { e.stopPropagation(); setTierlists((prev) => prev.filter(l => l.id !== t.id)); }} className="text-red-400"><Trash2 size={18}/></button>
                     </div>
                 ))}
              </div>
@@ -477,14 +406,13 @@ const MobileLayout = () => {
        </nav>
 
        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-       
-       <Modal isOpen={isNoteModalOpen} onClose={() => setIsNoteModalOpen(false)} title={currentNote.id ? t('editNote') : t('newNote')} customTheme={{ bg: activeLabel.color as string, text: activeLabel.textColor as string }}>
+       <Modal isOpen={isNoteModalOpen} onClose={() => setIsNoteModalOpen(false)} title={currentNote.id ? t('editNote') : t('newNote')} customTheme={{ bg: activeLabel.color, text: activeLabel.textColor }}>
           <div className="space-y-4">
               <input value={currentNote.title || ''} onChange={e => setCurrentNote({...currentNote, title: e.target.value})} placeholder={t('titlePlaceholder')} className="w-full bg-white/20 border-0 rounded-lg p-3 font-bold placeholder:text-black/50 outline-none text-lg" />
               <textarea value={currentNote.content || ''} onChange={e => setCurrentNote({...currentNote, content: e.target.value})} placeholder={t('contentPlaceholder')} className="w-full bg-white/20 border-0 rounded-lg p-3 h-64 resize-none outline-none placeholder:text-black/50" />
               <div className="flex gap-2 flex-wrap">
                   <button onClick={() => setCurrentNote({...currentNote, labelId: ''})} className={`px-3 py-1 rounded-full border ${currentNote.labelId === '' ? 'bg-white/40' : 'border-transparent'}`}>{t('noLabel')}</button>
-                  {labels.map((l: Label) => <button key={l.id} onClick={() => setCurrentNote({...currentNote, labelId: l.id})} className={`px-3 py-1 rounded-full border ${l.color} ${l.textColor} ${currentNote.labelId === l.id ? 'border-black/20 shadow' : 'border-transparent'}`}>{l.name}</button>)}
+                  {labels.map((l) => <button key={l.id} onClick={() => setCurrentNote({...currentNote, labelId: l.id})} className={`px-3 py-1 rounded-full border ${l.color} ${l.textColor} ${currentNote.labelId === l.id ? 'border-black/20 shadow' : 'border-transparent'}`}>{l.name}</button>)}
               </div>
               <Button onClick={saveNote} className="w-full bg-white/40 border-0 text-black">{t('save')}</Button>
           </div>
@@ -495,13 +423,9 @@ const MobileLayout = () => {
   );
 }
 
-// ==========================================
-// 5. DESKTOP LAYOUT
-// ==========================================
-
 const DesktopLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput } = useTheme();
-  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, fileHandle, setFileHandle } = useData() as any;
+  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, syncStatus } = useData();
   
   const [currentTab, setCurrentTab] = useState<'notes' | 'tiers'>('notes');
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
@@ -516,119 +440,36 @@ const DesktopLayout = () => {
   const [addingToTier, setAddingToTier] = useState<string | null>(null);
   const [newTierItemName, setNewTierItemName] = useState('');
 
-  // Derived State
-  const selectedNote = notes.find((n: Note) => n.id === selectedNoteId);
-  const activeList = tierlists.find((l: TierList) => l.id === activeListId);
-  const filteredNotes = notes.filter((n: Note) => 
+  const selectedNote = notes.find((n) => n.id === selectedNoteId);
+  const activeList = tierlists.find((l) => l.id === activeListId);
+  const filteredNotes = notes.filter((n) => 
     (activeFilters.length === 0 || activeFilters.includes(n.labelId || 'unlabeled')) &&
     (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const handleQuickSync = async () => {
-    try {
-      if ('showOpenFilePicker' in window) {
-        const [handle] = await (window as any).showOpenFilePicker({
-          types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
-        });
-        
-        if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
-          const perm = await handle.requestPermission({ mode: 'readwrite' });
-          if (perm !== 'granted') {
-            alert('Write permission was denied. Auto-save will not work.');
-            return;
-          }
-        }
-
-        setFileHandle(handle);
-        const file = await handle.getFile();
-        const text = await file.text();
-        const data = JSON.parse(text);
-        setNotes(data.notes || []);
-        setTierlists(data.tierlists || []);
-        setLabels(data.labels || []);
-        alert('NAS Synced and Linked for Auto-Save!');
-      } else {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = (e: any) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            try {
-              const data = JSON.parse(ev.target?.result as string);
-              setNotes(data.notes || []);
-              setTierlists(data.tierlists || []);
-              setLabels(data.labels || []);
-              alert('Data Imported from NAS!');
-            } catch (err) {
-              alert('Error reading JSON file');
-            }
-          };
-          reader.readAsText(file);
-        };
-        input.click();
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
   const handleUpdateNote = (id: number, updates: Partial<Note>) => {
-      setNotes((prev: Note[]) => prev.map(n => n.id === id ? { ...n, ...updates } : n));
+      setNotes((prev) => prev.map(n => n.id === id ? { ...n, ...updates } : n));
   };
 
   const createNote = () => {
-      const newNote = { id: Date.now(), title: '', content: '', labelId: '', date: new Date().toLocaleDateString() };
+      const id = Date.now();
+      const newNote = { id, title: '', content: '', labelId: '', date: new Date().toLocaleDateString() };
       setNotes([newNote, ...notes]);
-      setSelectedNoteId(newNote.id);
-  };
-
-  const handleUpdateLabel = (id: string, name: string, color: typeof availableColors[0]) => {
-    setLabels((labels: Label[]) => labels.map(l => l.id === id ? { ...l, name, color: color.bg, textColor: color.text } : l));
-  };
-
-  const handleCreateLabel = (name: string, color: typeof availableColors[0]) => {
-    const newLabel = { id: Date.now().toString(), name, color: color.bg, textColor: color.text };
-    setLabels([...labels, newLabel]);
-  };
-
-  const handleDeleteLabel = (id: string) => {
-    if (!confirm(t('deleteLabelConfirm'))) return;
-    const newLabels = labels.filter((l: Label) => l.id !== id);
-    setLabels(newLabels);
-    setNotes((notes: Note[]) => notes.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
+      setSelectedNoteId(id);
   };
 
   const tiers = [{ id: 'S', color: 'bg-red-500' }, { id: 'A', color: 'bg-orange-500' }, { id: 'B', color: 'bg-yellow-500' }, { id: 'C', color: 'bg-green-500' }, { id: 'D', color: 'bg-blue-500' }];
-  const createTierList = () => {
-      if(!newTierListTitle.trim()) return;
-      const newList = { id: Date.now(), title: newTierListTitle, items: [] };
-      setTierlists([newList, ...tierlists]);
-      setActiveListId(newList.id);
-      setNewTierListTitle(''); setIsTierListModalOpen(false);
-  };
-  const addTierItem = () => {
-      if(!newTierItemName.trim() || !addingToTier) return;
-      setTierlists((prev: TierList[]) => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: addingToTier }] } : l));
-      setNewTierItemName(''); setAddingToTier(null);
-  };
-
+  
   return (
     <div className={`min-h-screen flex ${bgMain} ${textMain} font-sans overflow-hidden`}>
-        {/* 1. SIDEBAR */}
         <aside className={`w-64 border-r ${border} flex flex-col flex-shrink-0 ${bgCard}`}>
             <div className="p-6 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 bg-gradient-to-br ${accent.gradient} rounded-xl flex items-center justify-center font-bold text-white shadow-lg text-xl`}>LB</div>
                     <span className="font-bold text-lg">{t('appTitle')}</span>
                 </div>
-                <button onClick={handleQuickSync} className={`${fileHandle ? 'text-green-500' : textSec} hover:${textMain} flex items-center gap-1`} title={fileHandle ? 'Linked to NAS' : 'Sync to NAS'}>
-                    <Download size={20} />
-                </button>
+                <SyncIndicator />
             </div>
-            
             <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
                 <button onClick={() => setCurrentTab('notes')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentTab === 'notes' ? `${accent.lightBg} ${accent.text}` : `${textSec} hover:${bgMain}`}`}>
                     <StickyNote size={18} /> {t('navNotes')} <span className="ml-auto text-xs opacity-60">{notes.length}</span>
@@ -636,8 +477,6 @@ const DesktopLayout = () => {
                 <button onClick={() => setCurrentTab('tiers')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentTab === 'tiers' ? `${accent.lightBg} ${accent.text}` : `${textSec} hover:${bgMain}`}`}>
                     <List size={18} /> {t('navTiers')}
                 </button>
-
-                {/* Label Section */}
                 {currentTab === 'notes' && (
                     <div className="pt-4">
                         <div className={`px-3 pb-2 text-xs font-bold uppercase tracking-wider ${textSec} flex justify-between items-center`}>
@@ -647,7 +486,7 @@ const DesktopLayout = () => {
                         <button onClick={() => toggleFilter('unlabeled')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes('unlabeled') ? `${accent.lightBg} ${accent.text}` : `${textSec} hover:${bgMain}`}`}>
                              <Tag size={16} /> {t('unlabeled')}
                         </button>
-                        {labels.map((l: Label) => (
+                        {labels.map((l) => (
                             <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes(l.id) ? `${l.color} ${l.textColor}` : `${textSec} hover:${bgMain}`}`}>
                                 <div className={`w-3 h-3 rounded-full ${l.color}`} /> {l.name}
                             </button>
@@ -655,7 +494,6 @@ const DesktopLayout = () => {
                     </div>
                 )}
             </nav>
-
             <div className="p-4 border-t border-gray-800/10 dark:border-white/5">
                 <button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${textSec} hover:${bgMain} hover:${textMain}`}>
                     <Settings size={18} /> {t('settings')}
@@ -663,14 +501,13 @@ const DesktopLayout = () => {
             </div>
         </aside>
 
-        {/* 2. SECONDARY COLUMN (List) */}
         <div className={`w-80 border-r ${border} flex flex-col flex-shrink-0 bg-opacity-50`}>
             <div className={`p-4 border-b ${border} flex gap-2`}>
                 {currentTab === 'notes' ? (
                     <>
                         <div className="relative flex-1">
                             <Search size={16} className={`absolute left-3 top-3 ${textSec}`} />
-                            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Suchen..." className={`w-full ${bgInput} rounded-lg pl-9 pr-3 py-2 text-sm border-none outline-none ${textMain}`} />
+                            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className={`w-full ${bgInput} rounded-lg pl-9 pr-3 py-2 text-sm border-none outline-none ${textMain}`} />
                         </div>
                         <button onClick={createNote} className={`p-2 rounded-lg ${accent.primary} text-white`}><Plus size={20} /></button>
                     </>
@@ -678,30 +515,28 @@ const DesktopLayout = () => {
                     <Button onClick={() => setIsTierListModalOpen(true)} className="w-full"><Plus size={18}/> {t('newTierList')}</Button>
                 )}
             </div>
-            
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {currentTab === 'notes' ? (
-                    filteredNotes.map((note: Note) => {
-                        const l = labels.find((l: Label) => l.id === note.labelId);
+                    filteredNotes.map((note) => {
+                        const l = labels.find((lab) => lab.id === note.labelId);
                         return (
-                        <div key={note.id} onClick={() => setSelectedNoteId(note.id)} className={`p-3 rounded-xl cursor-pointer border transition-all ${selectedNoteId === note.id ? `ring-2 ring-${accent.name.split(' ')[0].toLowerCase()}-500 scale-[1.02]` : `hover:border-gray-500 border-transparent`} ${l ? l.color : bgCard}`}>
-                            <h4 className={`font-bold text-sm truncate ${l ? l.textColor : textMain}`}>{note.title || 'Unbenannt'}</h4>
-                            <p className={`text-xs truncate mt-1 ${l ? l.textColor : textSec} opacity-80`}>{note.content || 'Kein Inhalt'}</p>
+                        <div key={note.id} onClick={() => setSelectedNoteId(note.id)} className={`p-3 rounded-xl cursor-pointer border transition-all ${selectedNoteId === note.id ? `ring-2 ring-indigo-500 scale-[1.02]` : `hover:border-gray-500 border-transparent`} ${l ? l.color : bgCard}`}>
+                            <h4 className={`font-bold text-sm truncate ${l ? l.textColor : textMain}`}>{note.title || 'Untitled'}</h4>
+                            <p className={`text-xs truncate mt-1 ${l ? l.textColor : textSec} opacity-80`}>{note.content || 'Empty'}</p>
                             <span className={`text-[10px] mt-2 block ${l ? l.textColor : textSec} opacity-60`}>{note.date}</span>
                         </div>
                     )})
                 ) : (
-                    tierlists.map((list: TierList) => (
+                    tierlists.map((list) => (
                         <div key={list.id} onClick={() => setActiveListId(list.id)} className={`p-3 rounded-xl cursor-pointer border transition-all flex justify-between ${activeListId === list.id ? `${accent.lightBg} ${accent.border}` : `${bgCard} border-transparent`}`}>
                             <span className="font-bold">{list.title}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setTierlists((prev: TierList[]) => prev.filter(l => l.id !== list.id)); }} className="text-red-400"><Trash2 size={16}/></button>
+                            <button onClick={(e) => { e.stopPropagation(); setTierlists((prev) => prev.filter(l => l.id !== list.id)); }} className="text-red-400"><Trash2 size={16}/></button>
                         </div>
                     ))
                 )}
             </div>
         </div>
 
-        {/* 3. MAIN CONTENT AREA (Right) */}
         <main className={`flex-1 flex flex-col ${bgMain} overflow-hidden`}>
             {currentTab === 'notes' ? (
                 selectedNote ? (
@@ -709,24 +544,23 @@ const DesktopLayout = () => {
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex gap-2">
                                 <button onClick={() => handleUpdateNote(selectedNote.id, { labelId: '' })} className={`px-2 py-1 rounded border text-xs ${!selectedNote.labelId ? 'bg-white/20' : 'border-transparent opacity-50'}`}>No Label</button>
-                                {labels.map((l: Label) => (
+                                {labels.map((l) => (
                                     <button 
                                         key={l.id} 
                                         onClick={() => handleUpdateNote(selectedNote.id, { labelId: l.id })}
                                         className={`w-6 h-6 rounded-full border-2 transition-transform ${selectedNote.labelId === l.id ? 'scale-110 border-white' : 'border-transparent opacity-50 hover:opacity-100'}`}
-                                        style={{ backgroundColor: l.color.replace('bg-', 'var(--') }} 
                                     >
                                         <div className={`w-full h-full rounded-full ${l.color}`}></div>
                                     </button>
                                 ))}
                             </div>
-                            <button onClick={() => { setNotes((prev: Note[]) => prev.filter(n => n.id !== selectedNote.id)); setSelectedNoteId(null); }} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg"><Trash2 size={20} /></button>
+                            <button onClick={() => { setNotes((prev) => prev.filter(n => n.id !== selectedNote.id)); setSelectedNoteId(null); }} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg"><Trash2 size={20} /></button>
                         </div>
-                        <input value={selectedNote.title} onChange={(e) => handleUpdateNote(selectedNote.id, { title: e.target.value })} placeholder={t('titlePlaceholder')} className="text-4xl font-bold bg-transparent border-none outline-none mb-4 placeholder:opacity-30" />
-                        <textarea value={selectedNote.content} onChange={(e) => handleUpdateNote(selectedNote.id, { content: e.target.value })} placeholder={t('contentPlaceholder')} className={`flex-1 bg-transparent border-none outline-none text-lg leading-relaxed resize-none ${textSec}`} />
+                        <input value={selectedNote.title} onChange={(e) => handleUpdateNote(selectedNote.id, { title: e.target.value })} placeholder="Title..." className="text-4xl font-bold bg-transparent border-none outline-none mb-4 placeholder:opacity-30" />
+                        <textarea value={selectedNote.content} onChange={(e) => handleUpdateNote(selectedNote.id, { content: e.target.value })} placeholder="Write something..." className={`flex-1 bg-transparent border-none outline-none text-lg leading-relaxed resize-none ${textSec}`} />
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30"><StickyNote size={64} className="mb-4" /><p className="text-xl">Wähle eine Notiz aus oder erstelle eine neue.</p></div>
+                    <div className="flex-1 flex items-center justify-center text-center opacity-30"><StickyNote size={64} className="mb-4" /></div>
                 )
             ) : (
                 activeList ? (
@@ -737,10 +571,10 @@ const DesktopLayout = () => {
                                 <div key={tier.id} className={`flex min-h-[100px] ${bgCard} rounded-xl border ${border} overflow-hidden`}>
                                     <div className={`${tier.color} w-24 flex flex-col items-center justify-center flex-shrink-0`}><span className="text-2xl font-black text-black/50">{tier.id}</span><button onClick={() => setAddingToTier(tier.id)} className="mt-2 bg-black/20 text-white p-1 rounded hover:bg-black/40"><Plus size={16}/></button></div>
                                     <div className="flex-1 p-4 flex flex-wrap gap-3 content-start">
-                                        {activeList.items.filter((i: TierItem) => i.tier === tier.id).map((item: TierItem) => (
+                                        {activeList.items.filter((i) => i.tier === tier.id).map((item) => (
                                             <div key={item.id} className={`${bgInput} px-4 py-2 rounded-lg shadow border ${border} flex items-center gap-2 group`}>
                                                 <span className="font-medium">{item.name}</span>
-                                                <button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
+                                                <button onClick={() => setTierlists((prev) => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
                                             </div>
                                         ))}
                                     </div>
@@ -748,27 +582,23 @@ const DesktopLayout = () => {
                             ))}
                         </div>
                         <Modal isOpen={!!addingToTier} onClose={() => setAddingToTier(null)} title={`${t('addItem')} - ${addingToTier}`}>
-                            <div className="space-y-4"><Input value={newTierItemName} onChange={(e) => setNewTierItemName(e.target.value)} placeholder={t('tierItemPlaceholder')} autoFocus /><Button onClick={addTierItem} className="w-full">{t('addItem')}</Button></div>
+                            <div className="space-y-4"><Input value={newTierItemName} onChange={(e) => setNewTierItemName(e.target.value)} placeholder={t('tierItemPlaceholder')} autoFocus /><Button onClick={() => { if(!newTierItemName.trim() || !addingToTier) return; setTierlists((prev) => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: addingToTier }] } : l)); setNewTierItemName(''); setAddingToTier(null); }} className="w-full">{t('addItem')}</Button></div>
                         </Modal>
                     </div>
                 ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center opacity-30"><List size={64} className="mb-4" /><p className="text-xl">Wähle eine Liste aus.</p></div>
+                    <div className="flex-1 flex items-center justify-center opacity-30"><List size={64}/></div>
                 )
             )}
         </main>
 
         <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-        <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} labels={labels} onAdd={handleCreateLabel} onUpdate={handleUpdateLabel} onDelete={handleDeleteLabel} />
+        <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} labels={labels} onAdd={(n, c) => setLabels([...labels, { id: Date.now().toString(), name: n, color: c.bg, textColor: c.text }])} onUpdate={(id, n, c) => setLabels(labels.map(l => l.id === id ? { ...l, name: n, color: c.bg, textColor: c.text } : l))} onDelete={id => { setLabels(labels.filter(l => l.id !== id)); setNotes(notes.map(n => n.labelId === id ? { ...n, labelId: '' } : n)); }} />
         <Modal isOpen={isTierListModalOpen} onClose={() => setIsTierListModalOpen(false)} title={t('newTierList')}>
-           <div className="space-y-4"><Input value={newTierListTitle} onChange={(e) => setNewTierListTitle(e.target.value)} placeholder={t('tierListNamePlaceholder')} autoFocus /><Button onClick={createTierList} className="w-full">{t('create')}</Button></div>
+           <div className="space-y-4"><Input value={newTierListTitle} onChange={(e) => setNewTierListTitle(e.target.value)} placeholder={t('tierListNamePlaceholder')} autoFocus /><Button onClick={() => { if(!newTierListTitle.trim()) return; setTierlists([{ id: Date.now(), title: newTierListTitle, items: [] }, ...tierlists]); setActiveListId(Date.now()); setNewTierListTitle(''); setIsTierListModalOpen(false); }} className="w-full">{t('create')}</Button></div>
         </Modal>
     </div>
   );
 }
-
-// ==========================================
-// 6. MAIN ENTRY POINT
-// ==========================================
 
 const App: React.FC = () => {
   return (
@@ -780,5 +610,4 @@ const App: React.FC = () => {
     </ThemeProvider>
   );
 };
-
 export default App;
