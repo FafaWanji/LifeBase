@@ -283,7 +283,7 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
-  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData() as any;
+  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, fileHandle, setFileHandle } = useData() as any;
   const [currentTab, setCurrentTab] = useState<'notes' | 'tierlist'>('notes');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
@@ -311,19 +311,24 @@ const MobileLayout = () => {
 
   const handleQuickSync = () => {
     try {
-      // Force mobile to ALWAYS use the standard file input importer
+      // FORCE MOBILE TO USE STANDARD UPLOAD - NO AUTO SAVE
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.json';
       input.onchange = (e: any) => {
         const file = e.target.files[0];
+        if (!file) return;
         const reader = new FileReader();
         reader.onload = (ev) => {
-          const data = JSON.parse(ev.target?.result as string);
-          setNotes(data.notes || []);
-          setTierlists(data.tierlists || []);
-          setLabels(data.labels || []);
-          alert('Data Imported from NAS!');
+          try {
+            const data = JSON.parse(ev.target?.result as string);
+            setNotes(data.notes || []);
+            setTierlists(data.tierlists || []);
+            setLabels(data.labels || []);
+            alert('Data Imported from NAS!');
+          } catch (err) {
+            alert('Error reading JSON file');
+          }
         };
         reader.readAsText(file);
       };
@@ -404,10 +409,10 @@ const MobileLayout = () => {
          <div className="flex items-center gap-3"><div className={`w-8 h-8 bg-gradient-to-br ${accent.gradient} rounded-lg flex items-center justify-center font-bold text-white shadow-lg`}>LB</div><h1 className={`text-lg font-bold tracking-tight ${textMain}`}>{t('appTitle')}</h1></div>
          
          <div className="flex items-center gap-4">
-           {/* Mobile Import Sync Button */}
+           {/* MOBILE SPECIFIC BUTTON */}
            <button onClick={handleQuickSync} className={`${textSec} hover:${textMain} flex items-center gap-1`}>
              <Download size={20} />
-             <span className="text-xs font-bold">Sync</span>
+             <span className="text-xs font-bold">Import</span>
            </button>
            <button onClick={() => setIsSettingsOpen(true)} className={`${textSec} hover:${textMain}`}><Settings size={24} /></button>
          </div>
@@ -521,13 +526,18 @@ const DesktopLayout = () => {
         input.accept = '.json';
         input.onchange = (e: any) => {
           const file = e.target.files[0];
+          if (!file) return;
           const reader = new FileReader();
           reader.onload = (ev) => {
-            const data = JSON.parse(ev.target?.result as string);
-            setNotes(data.notes || []);
-            setTierlists(data.tierlists || []);
-            setLabels(data.labels || []);
-            alert('Data Imported!');
+            try {
+              const data = JSON.parse(ev.target?.result as string);
+              setNotes(data.notes || []);
+              setTierlists(data.tierlists || []);
+              setLabels(data.labels || []);
+              alert('Data Imported from NAS!');
+            } catch (err) {
+              alert('Error reading JSON file');
+            }
           };
           reader.readAsText(file);
         };
