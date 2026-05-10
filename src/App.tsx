@@ -32,6 +32,7 @@ interface DataContextType {
   labels: Label[]; setLabels: React.Dispatch<React.SetStateAction<Label[]>>;
   activeFilters: string[]; setActiveFilters: React.Dispatch<React.SetStateAction<string[]>>;
   toggleFilter: (id: string) => void;
+  fileHandle?: any; setFileHandle?: React.Dispatch<React.SetStateAction<any>>;
 }
 
 const defaultLabels: Label[] = [
@@ -95,13 +96,81 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [notes, setNotes] = useState<Note[]>(() => JSON.parse(localStorage.getItem('lb_notes') || '[]'));
   const [tierlists, setTierlists] = useState<TierList[]>(() => JSON.parse(localStorage.getItem('lb_tierlists') || '[]'));
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  
+  // Store the direct link to the NAS file (Desktop only)
+  const [fileHandle, setFileHandle] = useState<any>(null);
+  
+  // Track when we last saw or wrote to the file to prevent infinite reload loops
+  const lastKnownModified = useRef<number>(Date.now());
 
+  // Auto-save to localStorage as a fallback
   useEffect(() => localStorage.setItem('lb_notes', JSON.stringify(notes)), [notes]);
   useEffect(() => localStorage.setItem('lb_labels', JSON.stringify(labels)), [labels]);
   useEffect(() => localStorage.setItem('lb_tierlists', JSON.stringify(tierlists)), [tierlists]);
 
+  // 1. AUTO-SAVE (Push to NAS)
+  useEffect(() => {
+    if (!fileHandle) return;
+    const saveToNAS = async () => {
+      try {
+        const writable = await fileHandle.createWritable();
+        await writable.write(JSON.stringify({ notes, tierlists, labels, exportDate: new Date().toISOString() }));
+        await writable.close();
+        
+        // Update our tracker so we know we caused this modification!
+        const updatedFile = await fileHandle.getFile();
+        lastKnownModified.current = updatedFile.lastModified;
+        
+        console.log('Auto-saved to NAS!');
+      } catch (e) {
+        console.error('Failed to write to NAS file', e);
+        alert('Error: Could not save to NAS. Is the file locked or network down?');
+      }
+    };
+    
+    // Wait 1 second after typing stops before saving
+    const timer = setTimeout(saveToNAS, 1000);
+    return () => clearTimeout(timer);
+  }, [notes, labels, tierlists, fileHandle]);
+
+  // 2. AUTO-LOAD (Pull from NAS)
+  useEffect(() => {
+    if (!fileHandle) return;
+
+    const checkForUpdates = async () => {
+      try {
+        const file = await fileHandle.getFile();
+        
+        // If the file on the NAS has a newer timestamp than our last action...
+        if (file.lastModified > lastKnownModified.current) {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          
+          setNotes(data.notes || []);
+          setTierlists(data.tierlists || []);
+          setLabels(data.labels || []);
+          
+          // Update our tracker so we don't download it again
+          lastKnownModified.current = file.lastModified;
+          console.log('Auto-Loaded fresh data from Phone/NAS!');
+        }
+      } catch (e) {
+        console.log('Background sync check failed (File might be temporarily locked).');
+      }
+    };
+
+    // Check for new data every 5 seconds
+    const interval = setInterval(checkForUpdates, 5000);
+    return () => clearInterval(interval);
+  }, [fileHandle]);
+
   const toggleFilter = (id: string) => setActiveFilters(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
-  return <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter }}>{children}</DataContext.Provider>;
+  
+  return (
+    <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, fileHandle, setFileHandle } as any}>
+      {children}
+    </DataContext.Provider>
+  );
 };
 
 const useTheme = () => { const c = useContext(ThemeContext); if (!c) throw new Error('useTheme missing'); return c; };
@@ -223,7 +292,7 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
-  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData();
+  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, fileHandle, setFileHandle } = useData() as any;
   const [currentTab, setCurrentTab] = useState<'notes' | 'tierlist'>('notes');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
@@ -244,21 +313,67 @@ const MobileLayout = () => {
   const [dragPos, setDragPos] = useState<{x:number, y:number}|null>(null);
   const [touchTarget, setTouchTarget] = useState<string|null>(null);
 
-  const filteredNotes = activeFilters.length === 0 ? notes : notes.filter(n => activeFilters.includes(n.labelId || 'unlabeled'));
-  const activeLabel = labels.find(l => l.id === currentNote.labelId) || { color: 'bg-gray-700', textColor: 'text-gray-200' };
-  const activeList = tierlists.find(l => l.id === activeListId);
+  const filteredNotes = activeFilters.length === 0 ? notes : notes.filter((n: Note) => activeFilters.includes(n.labelId || 'unlabeled'));
+  const activeLabel = labels.find((l: Label) => l.id === currentNote.labelId) || { color: 'bg-gray-700', textColor: 'text-gray-200' };
+  const activeList = tierlists.find((l: TierList) => l.id === activeListId);
   const tiers = [{ id: 'S', color: 'bg-red-500' }, { id: 'A', color: 'bg-orange-500' }, { id: 'B', color: 'bg-yellow-500' }, { id: 'C', color: 'bg-green-500' }, { id: 'D', color: 'bg-blue-500' }];
+
+  const handleQuickSync = async () => {
+    try {
+      if ('showOpenFilePicker' in window) {
+        const [handle] = await (window as any).showOpenFilePicker({
+          types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
+        });
+        
+        if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
+          const perm = await handle.requestPermission({ mode: 'readwrite' });
+          if (perm !== 'granted') {
+            alert('Write permission was denied. Auto-save will not work.');
+            return;
+          }
+        }
+
+        setFileHandle(handle);
+        const file = await handle.getFile();
+        const text = await file.text();
+        const data = JSON.parse(text);
+        setNotes(data.notes || []);
+        setTierlists(data.tierlists || []);
+        setLabels(data.labels || []);
+        alert('NAS Synced! Auto-Save is now fully active.');
+      } else {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e: any) => {
+          const file = e.target.files[0];
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const data = JSON.parse(ev.target?.result as string);
+            setNotes(data.notes || []);
+            setTierlists(data.tierlists || []);
+            setLabels(data.labels || []);
+            alert('Data Imported!');
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const saveNote = () => {
       if(!currentNote.title && !currentNote.content) return;
       const date = new Date().toLocaleDateString();
-      if(currentNote.id) setNotes(prev => prev.map(n => n.id === currentNote.id ? { ...n, ...currentNote, date } as Note : n));
+      if(currentNote.id) setNotes((prev: Note[]) => prev.map(n => n.id === currentNote.id ? { ...n, ...currentNote, date } as Note : n));
       else setNotes([{ id: Date.now(), ...currentNote, labelId: currentNote.labelId || '', date } as Note, ...notes]);
       setIsNoteModalOpen(false);
   };
 
   const handleUpdateLabel = (id: string, name: string, color: typeof availableColors[0]) => {
-    setLabels(labels.map(l => l.id === id ? { ...l, name, color: color.bg, textColor: color.text } : l));
+    setLabels((labels: Label[]) => labels.map(l => l.id === id ? { ...l, name, color: color.bg, textColor: color.text } : l));
   };
 
   const handleCreateLabel = (name: string, color: typeof availableColors[0]) => {
@@ -268,12 +383,11 @@ const MobileLayout = () => {
 
   const handleDeleteLabel = (id: string) => {
     if (!confirm(t('deleteLabelConfirm'))) return;
-    const newLabels = labels.filter(l => l.id !== id);
+    const newLabels = labels.filter((l: Label) => l.id !== id);
     setLabels(newLabels);
-    setNotes(notes.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
+    setNotes((notes: Note[]) => notes.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
   };
 
-  // Tier List Logic
   const createTierList = () => {
     if(!newTierListTitle.trim()) return;
     setTierlists([{ id: Date.now(), title: newTierListTitle, items: [] }, ...tierlists]);
@@ -282,11 +396,11 @@ const MobileLayout = () => {
 
   const addTierItem = () => {
       if(!newTierItemName.trim() || !targetTier) return;
-      setTierlists(prev => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: targetTier }] } : l));
+      setTierlists((prev: TierList[]) => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: targetTier }] } : l));
       setNewTierItemName(''); setTargetTier(null); setIsTierItemModalOpen(false);
   };
 
-  const handleDrop = (listId: number, tierId: string) => { if(!draggedItem) return; setTierlists(prev => prev.map(l => l.id === listId ? { ...l, items: l.items.map(i => i.id === draggedItem.id ? { ...i, tier: tierId } : i) } : l)); setDraggedItem(null); setDragPos(null); };
+  const handleDrop = (listId: number, tierId: string) => { if(!draggedItem) return; setTierlists((prev: TierList[]) => prev.map(l => l.id === listId ? { ...l, items: l.items.map(i => i.id === draggedItem.id ? { ...i, tier: tierId } : i) } : l)); setDraggedItem(null); setDragPos(null); };
   const handleTouchMove = (e: React.TouchEvent) => { setDragPos({ x: e.touches[0].clientX, y: e.touches[0].clientY }); const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY); setTouchTarget(el?.closest('[data-tier]')?.getAttribute('data-tier') || null); };
 
   if (activeListId !== null && activeList) {
@@ -301,7 +415,7 @@ const MobileLayout = () => {
                            <div className={`${tier.color} w-12 flex flex-col items-center justify-center flex-shrink-0 gap-1`}><span className="font-black text-black/50">{tier.id}</span><button onClick={() => { setTargetTier(tier.id); setIsTierItemModalOpen(true); }} className="bg-black/20 rounded text-white p-0.5"><Plus size={14}/></button></div>
                            <div className="flex-1 p-2 flex flex-wrap gap-2 content-start">
                                {activeList.items.filter(i => i.tier === tier.id).map(item => (
-                                   <div key={item.id} onTouchStart={(e) => { setDraggedItem(item); setDragPos({x: e.touches[0].clientX, y: e.touches[0].clientY}) }} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border} touch-none ${draggedItem?.id === item.id ? 'opacity-30' : ''}`}><span>{item.name}</span><button onClick={() => setTierlists(prev => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400"><X size={12}/></button></div>
+                                   <div key={item.id} onTouchStart={(e) => { setDraggedItem(item); setDragPos({x: e.touches[0].clientX, y: e.touches[0].clientY}) }} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border} touch-none ${draggedItem?.id === item.id ? 'opacity-30' : ''}`}><span>{item.name}</span><button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400"><X size={12}/></button></div>
                                ))}
                            </div>
                        </div>
@@ -319,7 +433,14 @@ const MobileLayout = () => {
     <div className={`min-h-screen ${bgMain} ${textMain} pb-safe font-sans flex flex-col`}>
        <header className={`${bgMain}/90 backdrop-blur-md sticky top-0 z-10 border-b ${border} px-4 py-3 flex justify-between items-center`}>
          <div className="flex items-center gap-3"><div className={`w-8 h-8 bg-gradient-to-br ${accent.gradient} rounded-lg flex items-center justify-center font-bold text-white shadow-lg`}>LB</div><h1 className={`text-lg font-bold tracking-tight ${textMain}`}>{t('appTitle')}</h1></div>
-         <button onClick={() => setIsSettingsOpen(true)} className={`${textSec} hover:${textMain}`}><Settings size={24} /></button>
+         
+         <div className="flex items-center gap-4">
+           <button onClick={handleQuickSync} className={`${fileHandle ? 'text-green-500' : textSec} hover:${textMain} flex items-center gap-1`}>
+             <Download size={20} />
+             <span className="text-xs font-bold">{fileHandle ? 'Linked' : 'Sync'}</span>
+           </button>
+           <button onClick={() => setIsSettingsOpen(true)} className={`${textSec} hover:${textMain}`}><Settings size={24} /></button>
+         </div>
        </header>
 
        <main className="flex-1 p-4 overflow-y-auto pb-24">
@@ -328,20 +449,20 @@ const MobileLayout = () => {
                  <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 items-center">
                      <button onClick={() => setIsLabelManagerOpen(true)} className={`h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-lg border ${border} ${bgCard}`}><Settings size={16}/></button>
                      <button onClick={() => toggleFilter('unlabeled')} className={`h-9 px-3 rounded-lg border flex items-center gap-1 whitespace-nowrap ${activeFilters.includes('unlabeled') ? bgCard : 'border-transparent'}`}><Tag size={14}/> {t('unlabeled')}</button>
-                     {labels.map(l => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`h-9 px-3 rounded-lg border whitespace-nowrap ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor : 'border-transparent'}`}>{l.name}</button>)}
+                     {labels.map((l: Label) => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`h-9 px-3 rounded-lg border whitespace-nowrap ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor : 'border-transparent'}`}>{l.name}</button>)}
                  </div>
                  <div className="grid grid-cols-2 gap-4">
-                    {filteredNotes.map(n => <NoteCard key={n.id} note={n} label={labels.find(l => l.id === n.labelId) || { id: 'u', name: t('unlabeled'), color: 'bg-gray-700', textColor: 'text-gray-200'}} onClick={() => { setCurrentNote(n); setIsNoteModalOpen(true); }} onDelete={(e) => { e.stopPropagation(); setNotes(prev => prev.filter(x => x.id !== n.id)); }} />)}
+                    {filteredNotes.map((n: Note) => <NoteCard key={n.id} note={n} label={labels.find((l: Label) => l.id === n.labelId) || { id: 'u', name: t('unlabeled'), color: 'bg-gray-700', textColor: 'text-gray-200'}} onClick={() => { setCurrentNote(n); setIsNoteModalOpen(true); }} onDelete={(e) => { e.stopPropagation(); setNotes((prev: Note[]) => prev.filter(x => x.id !== n.id)); }} />)}
                  </div>
                  <button onClick={() => { setCurrentNote({}); setIsNoteModalOpen(true); }} className={`fixed bottom-24 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-lg flex items-center justify-center`}><Plus size={28}/></button>
              </div>
          ) : (
              <div className="space-y-4">
                 <Button onClick={() => setIsTierListModalOpen(true)} className="w-full"><Plus size={18}/> {t('newTierList')}</Button>
-                {tierlists.map(t => (
+                {tierlists.map((t: TierList) => (
                     <div key={t.id} onClick={() => setActiveListId(t.id)} className={`${bgCard} p-4 rounded-xl border ${border} flex justify-between items-center`}>
                         <span className="font-bold">{t.title}</span>
-                        <button onClick={(e) => { e.stopPropagation(); setTierlists(prev => prev.filter(l => l.id !== t.id)); }} className="text-red-400"><Trash2 size={18}/></button>
+                        <button onClick={(e) => { e.stopPropagation(); setTierlists((prev: TierList[]) => prev.filter(l => l.id !== t.id)); }} className="text-red-400"><Trash2 size={18}/></button>
                     </div>
                 ))}
              </div>
@@ -361,7 +482,7 @@ const MobileLayout = () => {
               <textarea value={currentNote.content || ''} onChange={e => setCurrentNote({...currentNote, content: e.target.value})} placeholder={t('contentPlaceholder')} className="w-full bg-white/20 border-0 rounded-lg p-3 h-64 resize-none outline-none placeholder:text-black/50" />
               <div className="flex gap-2 flex-wrap">
                   <button onClick={() => setCurrentNote({...currentNote, labelId: ''})} className={`px-3 py-1 rounded-full border ${currentNote.labelId === '' ? 'bg-white/40' : 'border-transparent'}`}>{t('noLabel')}</button>
-                  {labels.map(l => <button key={l.id} onClick={() => setCurrentNote({...currentNote, labelId: l.id})} className={`px-3 py-1 rounded-full border ${l.color} ${l.textColor} ${currentNote.labelId === l.id ? 'border-black/20 shadow' : 'border-transparent'}`}>{l.name}</button>)}
+                  {labels.map((l: Label) => <button key={l.id} onClick={() => setCurrentNote({...currentNote, labelId: l.id})} className={`px-3 py-1 rounded-full border ${l.color} ${l.textColor} ${currentNote.labelId === l.id ? 'border-black/20 shadow' : 'border-transparent'}`}>{l.name}</button>)}
               </div>
               <Button onClick={saveNote} className="w-full bg-white/40 border-0 text-black">{t('save')}</Button>
           </div>
@@ -378,7 +499,7 @@ const MobileLayout = () => {
 
 const DesktopLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput } = useTheme();
-  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData();
+  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, fileHandle, setFileHandle } = useData() as any;
   
   const [currentTab, setCurrentTab] = useState<'notes' | 'tiers'>('notes');
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
@@ -394,15 +515,61 @@ const DesktopLayout = () => {
   const [newTierItemName, setNewTierItemName] = useState('');
 
   // Derived State
-  const selectedNote = notes.find(n => n.id === selectedNoteId);
-  const activeList = tierlists.find(l => l.id === activeListId);
-  const filteredNotes = notes.filter(n => 
+  const selectedNote = notes.find((n: Note) => n.id === selectedNoteId);
+  const activeList = tierlists.find((l: TierList) => l.id === activeListId);
+  const filteredNotes = notes.filter((n: Note) => 
     (activeFilters.length === 0 || activeFilters.includes(n.labelId || 'unlabeled')) &&
     (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase()))
   );
 
+  const handleQuickSync = async () => {
+    try {
+      if ('showOpenFilePicker' in window) {
+        const [handle] = await (window as any).showOpenFilePicker({
+          types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
+        });
+        
+        if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
+          const perm = await handle.requestPermission({ mode: 'readwrite' });
+          if (perm !== 'granted') {
+            alert('Write permission was denied. Auto-save will not work.');
+            return;
+          }
+        }
+
+        setFileHandle(handle);
+        const file = await handle.getFile();
+        const text = await file.text();
+        const data = JSON.parse(text);
+        setNotes(data.notes || []);
+        setTierlists(data.tierlists || []);
+        setLabels(data.labels || []);
+        alert('NAS Synced and Linked for Auto-Save!');
+      } else {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e: any) => {
+          const file = e.target.files[0];
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const data = JSON.parse(ev.target?.result as string);
+            setNotes(data.notes || []);
+            setTierlists(data.tierlists || []);
+            setLabels(data.labels || []);
+            alert('Data Imported!');
+          };
+          reader.readAsText(file);
+        };
+        input.click();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleUpdateNote = (id: number, updates: Partial<Note>) => {
-      setNotes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n));
+      setNotes((prev: Note[]) => prev.map(n => n.id === id ? { ...n, ...updates } : n));
   };
 
   const createNote = () => {
@@ -411,9 +578,8 @@ const DesktopLayout = () => {
       setSelectedNoteId(newNote.id);
   };
 
-  // Label Logic
   const handleUpdateLabel = (id: string, name: string, color: typeof availableColors[0]) => {
-    setLabels(labels.map(l => l.id === id ? { ...l, name, color: color.bg, textColor: color.text } : l));
+    setLabels((labels: Label[]) => labels.map(l => l.id === id ? { ...l, name, color: color.bg, textColor: color.text } : l));
   };
 
   const handleCreateLabel = (name: string, color: typeof availableColors[0]) => {
@@ -423,12 +589,11 @@ const DesktopLayout = () => {
 
   const handleDeleteLabel = (id: string) => {
     if (!confirm(t('deleteLabelConfirm'))) return;
-    const newLabels = labels.filter(l => l.id !== id);
+    const newLabels = labels.filter((l: Label) => l.id !== id);
     setLabels(newLabels);
-    setNotes(notes.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
+    setNotes((notes: Note[]) => notes.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
   };
 
-  // Tier Logic
   const tiers = [{ id: 'S', color: 'bg-red-500' }, { id: 'A', color: 'bg-orange-500' }, { id: 'B', color: 'bg-yellow-500' }, { id: 'C', color: 'bg-green-500' }, { id: 'D', color: 'bg-blue-500' }];
   const createTierList = () => {
       if(!newTierListTitle.trim()) return;
@@ -439,7 +604,7 @@ const DesktopLayout = () => {
   };
   const addTierItem = () => {
       if(!newTierItemName.trim() || !addingToTier) return;
-      setTierlists(prev => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: addingToTier }] } : l));
+      setTierlists((prev: TierList[]) => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: addingToTier }] } : l));
       setNewTierItemName(''); setAddingToTier(null);
   };
 
@@ -447,9 +612,14 @@ const DesktopLayout = () => {
     <div className={`min-h-screen flex ${bgMain} ${textMain} font-sans overflow-hidden`}>
         {/* 1. SIDEBAR */}
         <aside className={`w-64 border-r ${border} flex flex-col flex-shrink-0 ${bgCard}`}>
-            <div className="p-6 flex items-center gap-3">
-                <div className={`w-10 h-10 bg-gradient-to-br ${accent.gradient} rounded-xl flex items-center justify-center font-bold text-white shadow-lg text-xl`}>LB</div>
-                <span className="font-bold text-lg">{t('appTitle')}</span>
+            <div className="p-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 bg-gradient-to-br ${accent.gradient} rounded-xl flex items-center justify-center font-bold text-white shadow-lg text-xl`}>LB</div>
+                    <span className="font-bold text-lg">{t('appTitle')}</span>
+                </div>
+                <button onClick={handleQuickSync} className={`${fileHandle ? 'text-green-500' : textSec} hover:${textMain} flex items-center gap-1`} title={fileHandle ? 'Linked to NAS' : 'Sync to NAS'}>
+                    <Download size={20} />
+                </button>
             </div>
             
             <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
@@ -470,7 +640,7 @@ const DesktopLayout = () => {
                         <button onClick={() => toggleFilter('unlabeled')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes('unlabeled') ? `${accent.lightBg} ${accent.text}` : `${textSec} hover:${bgMain}`}`}>
                              <Tag size={16} /> {t('unlabeled')}
                         </button>
-                        {labels.map(l => (
+                        {labels.map((l: Label) => (
                             <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes(l.id) ? `${l.color} ${l.textColor}` : `${textSec} hover:${bgMain}`}`}>
                                 <div className={`w-3 h-3 rounded-full ${l.color}`} /> {l.name}
                             </button>
@@ -504,8 +674,8 @@ const DesktopLayout = () => {
             
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {currentTab === 'notes' ? (
-                    filteredNotes.map(note => {
-                        const l = labels.find(l => l.id === note.labelId);
+                    filteredNotes.map((note: Note) => {
+                        const l = labels.find((l: Label) => l.id === note.labelId);
                         return (
                         <div key={note.id} onClick={() => setSelectedNoteId(note.id)} className={`p-3 rounded-xl cursor-pointer border transition-all ${selectedNoteId === note.id ? `ring-2 ring-${accent.name.split(' ')[0].toLowerCase()}-500 scale-[1.02]` : `hover:border-gray-500 border-transparent`} ${l ? l.color : bgCard}`}>
                             <h4 className={`font-bold text-sm truncate ${l ? l.textColor : textMain}`}>{note.title || 'Unbenannt'}</h4>
@@ -514,10 +684,10 @@ const DesktopLayout = () => {
                         </div>
                     )})
                 ) : (
-                    tierlists.map(list => (
+                    tierlists.map((list: TierList) => (
                         <div key={list.id} onClick={() => setActiveListId(list.id)} className={`p-3 rounded-xl cursor-pointer border transition-all flex justify-between ${activeListId === list.id ? `${accent.lightBg} ${accent.border}` : `${bgCard} border-transparent`}`}>
                             <span className="font-bold">{list.title}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setTierlists(prev => prev.filter(l => l.id !== list.id)); }} className="text-red-400"><Trash2 size={16}/></button>
+                            <button onClick={(e) => { e.stopPropagation(); setTierlists((prev: TierList[]) => prev.filter(l => l.id !== list.id)); }} className="text-red-400"><Trash2 size={16}/></button>
                         </div>
                     ))
                 )}
@@ -532,7 +702,7 @@ const DesktopLayout = () => {
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex gap-2">
                                 <button onClick={() => handleUpdateNote(selectedNote.id, { labelId: '' })} className={`px-2 py-1 rounded border text-xs ${!selectedNote.labelId ? 'bg-white/20' : 'border-transparent opacity-50'}`}>No Label</button>
-                                {labels.map(l => (
+                                {labels.map((l: Label) => (
                                     <button 
                                         key={l.id} 
                                         onClick={() => handleUpdateNote(selectedNote.id, { labelId: l.id })}
@@ -543,7 +713,7 @@ const DesktopLayout = () => {
                                     </button>
                                 ))}
                             </div>
-                            <button onClick={() => { setNotes(prev => prev.filter(n => n.id !== selectedNote.id)); setSelectedNoteId(null); }} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg"><Trash2 size={20} /></button>
+                            <button onClick={() => { setNotes((prev: Note[]) => prev.filter(n => n.id !== selectedNote.id)); setSelectedNoteId(null); }} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg"><Trash2 size={20} /></button>
                         </div>
                         <input value={selectedNote.title} onChange={(e) => handleUpdateNote(selectedNote.id, { title: e.target.value })} placeholder={t('titlePlaceholder')} className="text-4xl font-bold bg-transparent border-none outline-none mb-4 placeholder:opacity-30" />
                         <textarea value={selectedNote.content} onChange={(e) => handleUpdateNote(selectedNote.id, { content: e.target.value })} placeholder={t('contentPlaceholder')} className={`flex-1 bg-transparent border-none outline-none text-lg leading-relaxed resize-none ${textSec}`} />
@@ -560,10 +730,10 @@ const DesktopLayout = () => {
                                 <div key={tier.id} className={`flex min-h-[100px] ${bgCard} rounded-xl border ${border} overflow-hidden`}>
                                     <div className={`${tier.color} w-24 flex flex-col items-center justify-center flex-shrink-0`}><span className="text-2xl font-black text-black/50">{tier.id}</span><button onClick={() => setAddingToTier(tier.id)} className="mt-2 bg-black/20 text-white p-1 rounded hover:bg-black/40"><Plus size={16}/></button></div>
                                     <div className="flex-1 p-4 flex flex-wrap gap-3 content-start">
-                                        {activeList.items.filter(i => i.tier === tier.id).map(item => (
+                                        {activeList.items.filter((i: TierItem) => i.tier === tier.id).map((item: TierItem) => (
                                             <div key={item.id} className={`${bgInput} px-4 py-2 rounded-lg shadow border ${border} flex items-center gap-2 group`}>
                                                 <span className="font-medium">{item.name}</span>
-                                                <button onClick={() => setTierlists(prev => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
+                                                <button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
                                             </div>
                                         ))}
                                     </div>
