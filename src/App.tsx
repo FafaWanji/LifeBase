@@ -1,52 +1,32 @@
 import React, { useState, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
 import { 
   StickyNote, List, Plus, Trash2, X, 
-  Settings, Menu, Download, Upload, AlertTriangle, 
-  Moon, Sun, Pencil, Tag, Copy, Clipboard, Check, Search, Cloud, CloudOff
+  Settings, Menu, Download, Upload, 
+  Moon, Sun, Pencil, Tag, Search, Cloud, CloudOff
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 // ==========================================
-// 1. CLOUD CONFIGURATION (SAFE VERSION)
+// 1. SAFE CONFIGURATION
 // ==========================================
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL; 
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.error("Missing Supabase Keys! Check your .env file.");
-}
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''; 
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================
-// 2. TYPES & LOGIC
+// 2. TYPES
 // ==========================================
-
 type ThemeMode = 'dark' | 'light';
 type AccentKey = 'indigo' | 'rose' | 'emerald' | 'amber' | 'cyan' | 'violet';
 type Language = 'de' | 'en' | 'tr';
-
 interface Label { id: string; name: string; color: string; textColor: string; }
 interface Note { id: number; title: string; content: string; labelId: string; date: string; }
 interface TierItem { id: number; name: string; tier: string; }
 interface TierList { id: number; title: string; items: TierItem[]; }
 interface AccentProfile { name: string; primary: string; hover: string; text: string; ring: string; lightBg: string; border: string; gradient: string; }
-
-interface ThemeContextType {
-  bgMain: string; bgCard: string; bgInput: string; textMain: string; textSec: string; border: string; modalOverlay: string;
-  accent: AccentProfile; mode: ThemeMode; setMode: (m: ThemeMode) => void;
-  accentKey: AccentKey; setAccentKey: (k: AccentKey) => void;
-  language: Language; setLanguage: (l: Language) => void; t: (k: string) => string;
-}
-
-interface DataContextType {
-  notes: Note[]; setNotes: React.Dispatch<React.SetStateAction<Note[]>>;
-  tierlists: TierList[]; setTierlists: React.Dispatch<React.SetStateAction<TierList[]>>;
-  labels: Label[]; setLabels: React.Dispatch<React.SetStateAction<Label[]>>;
-  activeFilters: string[]; setActiveFilters: React.Dispatch<React.SetStateAction<string[]>>;
-  toggleFilter: (id: string) => void;
-  syncStatus: 'synced' | 'syncing' | 'error';
-}
+interface ThemeContextType { bgMain: string; bgCard: string; bgInput: string; textMain: string; textSec: string; border: string; modalOverlay: string; accent: AccentProfile; mode: ThemeMode; setMode: (m: ThemeMode) => void; accentKey: AccentKey; setAccentKey: (k: AccentKey) => void; language: Language; setLanguage: (l: Language) => void; t: (k: string) => string; }
+interface DataContextType { notes: Note[]; setNotes: React.Dispatch<React.SetStateAction<Note[]>>; tierlists: TierList[]; setTierlists: React.Dispatch<React.SetStateAction<TierList[]>>; labels: Label[]; setLabels: React.Dispatch<React.SetStateAction<Label[]>>; activeFilters: string[]; setActiveFilters: React.Dispatch<React.SetStateAction<string[]>>; toggleFilter: (id: string) => void; syncStatus: 'synced' | 'syncing' | 'error'; }
 
 const defaultLabels: Label[] = [
   { id: '1', name: 'Allgemein', color: 'bg-yellow-200', textColor: 'text-yellow-900' },
@@ -87,31 +67,18 @@ const accents: Record<AccentKey, AccentProfile> = {
   violet: { name: 'Violet', primary: 'bg-violet-600', hover: 'hover:bg-violet-700', text: 'text-violet-500', ring: 'focus:ring-violet-500', lightBg: 'bg-violet-500/20', border: 'border-violet-500', gradient: 'from-violet-500 to-fuchsia-600' }
 };
 
-// ==========================================
-// 3. CONTEXTS
-// ==========================================
-
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const DataContext = createContext<DataContextType | undefined>(undefined);
-
-const useTheme = () => { const c = useContext(ThemeContext); if (!c) throw new Error('useTheme missing'); return c; };
-const useData = () => { const c = useContext(DataContext); if (!c) throw new Error('useData missing'); return c; };
-
-// ==========================================
-// 4. PROVIDERS
-// ==========================================
 
 const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => (localStorage.getItem('lb_theme_mode') as ThemeMode) || 'dark');
   const [accentKey, setAccentKey] = useState<AccentKey>(() => (localStorage.getItem('lb_theme_accent') as AccentKey) || 'indigo');
   const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('lb_language') as Language) || 'en');
-
   useEffect(() => {
     localStorage.setItem('lb_theme_mode', mode);
     localStorage.setItem('lb_theme_accent', accentKey);
     localStorage.setItem('lb_language', language);
   }, [mode, accentKey, language]);
-
   return <ThemeContext.Provider value={{ ...themes[mode], accent: accents[accentKey], mode, setMode, accentKey, setAccentKey, language, setLanguage, t: (k) => dictionary[language][k] || k }}>{children}</ThemeContext.Provider>;
 };
 
@@ -123,7 +90,6 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
   const isInitialLoad = useRef(true);
 
-  // Cloud Pull
   useEffect(() => {
     const fetchData = async () => {
       setSyncStatus('syncing');
@@ -141,9 +107,8 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     fetchData();
   }, []);
 
-  // Cloud Real-time Listener
   useEffect(() => {
-    const channel = supabase.channel('db-sync').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data' }, (payload) => {
+    const channel = supabase.channel('db-sync').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data' }, (payload: any) => {
       setLabels(payload.new.labels);
       setNotes(payload.new.notes);
       setTierlists(payload.new.tierlists);
@@ -151,7 +116,6 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Cloud Auto-save
   useEffect(() => {
     if (isInitialLoad.current) return;
     const save = async () => {
@@ -164,18 +128,15 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   }, [notes, labels, tierlists]);
 
   const toggleFilter = (id: string) => setActiveFilters(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
-  
-  return (
-    <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus }}>
-      {children}
-    </DataContext.Provider>
-  );
+  return <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus }}>{children}</DataContext.Provider>;
 };
 
-// ==========================================
-// 5. SHARED COMPONENTS
-// ==========================================
+const useTheme = () => { const c = useContext(ThemeContext); if (!c) throw new Error('useTheme missing'); return c; };
+const useData = () => { const c = useContext(DataContext); if (!c) throw new Error('useData missing'); return c; };
 
+// ==========================================
+// 3. COMPONENTS
+// ==========================================
 const SyncIndicator = () => {
   const { syncStatus } = useData();
   if (syncStatus === 'syncing') return <div className="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full" />;
@@ -193,20 +154,17 @@ const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => 
   return <input className={`w-full ${bgInput} border ${border} rounded-xl px-4 py-3 ${textMain} placeholder:${textSec} focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all ${props.className}`} {...props} />;
 };
 
-interface ModalProps { isOpen: boolean; onClose: () => void; title: string; children: ReactNode; customTheme?: { bg: string; text: string }; }
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, customTheme }) => {
+const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: ReactNode; customTheme?: { bg: string; text: string } }> = ({ isOpen, onClose, title, children, customTheme }) => {
   const { bgCard, border, textMain, textSec, modalOverlay } = useTheme();
   const finalBg = customTheme ? customTheme.bg : bgCard;
   const finalText = customTheme ? customTheme.text : textMain;
-  const finalBorder = customTheme ? 'border-transparent' : border;
-  const closeBtnClass = customTheme ? `hover:bg-black/10 ${customTheme.text}` : `${textSec} hover:${textMain}`;
   if (!isOpen) return null;
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in duration-200`}>
-      <div className={`${finalBg} w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border ${finalBorder} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 transition-colors duration-300`}>
+      <div className={`${finalBg} w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border ${customTheme ? 'border-transparent' : border} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200`}>
         <div className={`flex-shrink-0 flex items-center justify-between p-4 border-b ${customTheme ? 'border-black/5' : border}`}>
           <h3 className={`text-lg font-bold ${finalText}`}>{title}</h3>
-          <button onClick={onClose} className={closeBtnClass}><X size={20} /></button>
+          <button onClick={onClose} className={customTheme ? finalText : textSec}><X size={20} /></button>
         </div>
         <div className={`p-4 overflow-y-auto ${finalText}`}>{children}</div>
       </div>
@@ -241,15 +199,10 @@ const LabelManager: React.FC<{ isOpen: boolean; onClose: () => void; labels: Lab
   );
 };
 
-const FlagDE = () => <svg viewBox="0 0 5 3" className="w-6 h-6 rounded overflow-hidden shadow-sm"><rect width="5" height="3" y="0" fill="#000"/><rect width="5" height="2" y="1" fill="#D00"/><rect width="5" height="1" y="2" fill="#FFCE00"/></svg>;
-const FlagEN = () => <svg viewBox="0 0 60 30" className="w-6 h-6 rounded overflow-hidden shadow-sm"><rect width="60" height="30" fill="#012169"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" strokeWidth="6"/><path d="M0,0 L60,30 M60,0 L0,30" stroke="#C8102E" strokeWidth="4"/><path d="M30,0 L30,30 M0,15 L60,15" stroke="#fff" strokeWidth="10"/><path d="M30,0 L30,30 M0,15 L60,15" stroke="#C8102E" strokeWidth="6"/></svg>;
-const FlagTR = () => <svg viewBox="0 0 1200 800" className="w-6 h-6 rounded overflow-hidden shadow-sm"><rect width="1200" height="800" fill="#E30A17"/><circle cx="425" cy="400" r="200" fill="#fff"/><circle cx="475" cy="400" r="160" fill="#E30A17"/><polygon points="583.334,400 752.928,455.519 647.712,311.803 647.712,488.197 752.928,344.481" fill="#fff"/></svg>;
-
 const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { mode, setMode, bgInput, textMain, textSec, border, language, setLanguage, t } = useTheme();
+  const { mode, setMode, bgInput, border, language, setLanguage, t, textSec } = useTheme();
   const { notes, tierlists, labels, setNotes, setTierlists, setLabels } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const getExportData = () => JSON.stringify({ notes, tierlists, labels, exportDate: new Date().toISOString() });
   const handleImport = (text: string) => {
     try {
@@ -258,13 +211,12 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
       alert(t('importSuccess')); window.location.reload();
     } catch { alert(t('importError')); }
   };
-
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('settings')}>
       <div className="space-y-8">
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('appearance')}</h4><div className={`${bgInput} p-1 rounded-xl flex border ${border}`}><button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'light' ? 'bg-white text-black' : 'text-gray-500'}`}><Sun size={16}/>{t('light')}</button><button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg flex items-center gap-2 justify-center text-sm ${mode === 'dark' ? 'bg-gray-700 text-white' : 'text-gray-400'}`}><Moon size={16}/>{t('dark')}</button></div></div>
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <button key={l} onClick={() => setLanguage(l as any)} className={`flex-1 py-3 rounded-xl border-2 flex justify-center ${language === l ? border : 'border-transparent'}`}>{l === 'de' ? <FlagDE/> : l === 'en' ? <FlagEN/> : <FlagTR/>}</button>)}</div></div>
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('backup')}</h4><div className="space-y-2"><Button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getExportData()], {type: 'application/json'})); a.download = 'lifebase_backup.json'; a.click(); }} variant="secondary" className="w-full justify-between"><span>{t('saveToFile')}</span><Download size={18}/></Button><input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (ev) => handleImport(ev.target?.result as string); r.readAsText(f); }}} className="hidden" /><Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>{t('loadFromFile')}</span><Upload size={18}/></Button></div></div>
+         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('appearance')}</h4><div className={`${bgInput} p-1 rounded-xl flex border ${border}`}><button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg text-sm ${mode === 'light' ? 'bg-white text-black' : 'opacity-50'}`}>{t('light')}</button><button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg text-sm ${mode === 'dark' ? 'bg-gray-700 text-white' : 'opacity-50'}`}>{t('dark')}</button></div></div>
+         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <button key={l} onClick={() => setLanguage(l as any)} className={`flex-1 py-2 rounded-xl border-2 ${language === l ? border : 'border-transparent opacity-50'}`}>{l.toUpperCase()}</button>)}</div></div>
+         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('backup')}</h4><div className="space-y-2"><Button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getExportData()], {type: 'application/json'})); a.download = 'backup.json'; a.click(); }} variant="secondary" className="w-full justify-between"><span>{t('saveToFile')}</span><Download size={18}/></Button><input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (ev) => handleImport(ev.target?.result as string); r.readAsText(f); }}} className="hidden" /><Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>{t('loadFromFile')}</span><Upload size={18}/></Button></div></div>
          <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl flex gap-3 items-start"><Cloud className="text-indigo-500 shrink-0" size={20} /><p className="text-xs text-indigo-600 dark:text-indigo-200/80">{t('dataInfo')}</p></div>
       </div>
     </Modal>
@@ -272,9 +224,8 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 };
 
 // ==========================================
-// 6. LAYOUTS
+// 4. LAYOUTS
 // ==========================================
-
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
   const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData();
@@ -284,330 +235,148 @@ const MobileLayout = () => {
   const [currentNote, setCurrentNote] = useState<Partial<Note>>({});
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [isTierListModalOpen, setIsTierListModalOpen] = useState(false);
-  const [isTierItemModalOpen, setIsTierItemModalOpen] = useState(false);
   const [activeListId, setActiveListId] = useState<number | null>(null);
   const [newTierListTitle, setNewTierListTitle] = useState('');
-  const [newTierItemName, setNewTierItemName] = useState('');
-  const [targetTier, setTargetTier] = useState<string | null>(null);
 
-  const [draggedItem, setDraggedItem] = useState<TierItem | null>(null);
-  const [dragPos, setDragPos] = useState<{x:number, y:number}|null>(null);
-  const [touchTarget, setTouchTarget] = useState<string|null>(null);
-
-  const filteredNotes = activeFilters.length === 0 ? notes : notes.filter((n: Note) => activeFilters.includes(n.labelId || 'unlabeled'));
-  const activeLabel = labels.find((l: Label) => l.id === currentNote.labelId) || { color: 'bg-gray-700', textColor: 'text-gray-200' };
-  const activeList = tierlists.find((l: TierList) => l.id === activeListId);
-  const tiers = [{ id: 'S', color: 'bg-red-500' }, { id: 'A', color: 'bg-orange-500' }, { id: 'B', color: 'bg-yellow-500' }, { id: 'C', color: 'bg-green-500' }, { id: 'D', color: 'bg-blue-500' }];
+  const filteredNotes = activeFilters.length === 0 ? notes : notes.filter(n => activeFilters.includes(n.labelId || 'unlabeled'));
+  const activeLabel = labels.find(l => l.id === currentNote.labelId) || { color: 'bg-gray-700', textColor: 'text-gray-200' };
+  const activeList = tierlists.find(l => l.id === activeListId);
 
   const saveNote = () => {
-      if(!currentNote.title && !currentNote.content) return;
-      const date = new Date().toLocaleDateString();
-      if(currentNote.id) setNotes((prev) => prev.map(n => n.id === currentNote.id ? { ...n, ...currentNote, date } as Note : n));
-      else setNotes([{ id: Date.now(), title: currentNote.title || '', content: currentNote.content || '', labelId: currentNote.labelId || '', date } as Note, ...notes]);
-      setIsNoteModalOpen(false);
+    const date = new Date().toLocaleDateString();
+    if(currentNote.id) setNotes(prev => prev.map(n => n.id === currentNote.id ? { ...n, ...currentNote, date } as Note : n));
+    else setNotes([{ id: Date.now(), title: currentNote.title || '', content: currentNote.content || '', labelId: currentNote.labelId || '', date } as Note, ...notes]);
+    setIsNoteModalOpen(false);
   };
-
-  const handleUpdateLabel = (id: string, name: string, color: typeof availableColors[0]) => {
-    setLabels((prev) => prev.map(l => l.id === id ? { ...l, name, color: color.bg, textColor: color.text } : l));
-  };
-
-  const handleCreateLabel = (name: string, color: typeof availableColors[0]) => {
-    const newLabel = { id: Date.now().toString(), name, color: color.bg, textColor: color.text };
-    setLabels([...labels, newLabel]);
-  };
-
-  const handleDeleteLabel = (id: string) => {
-    const newLabels = labels.filter((l) => l.id !== id);
-    setLabels(newLabels);
-    setNotes((prev) => prev.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
-  };
-
-  const createTierList = () => {
-    if(!newTierListTitle.trim()) return;
-    setTierlists([{ id: Date.now(), title: newTierListTitle, items: [] }, ...tierlists]);
-    setNewTierListTitle(''); setIsTierListModalOpen(false);
-  };
-
-  const addTierItem = () => {
-      if(!newTierItemName.trim() || !targetTier) return;
-      setTierlists((prev) => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: targetTier }] } : l));
-      setNewTierItemName(''); setTargetTier(null); setIsTierItemModalOpen(false);
-  };
-
-  const handleDrop = (listId: number, tierId: string) => { if(!draggedItem) return; setTierlists((prev) => prev.map(l => l.id === listId ? { ...l, items: l.items.map((i) => i.id === draggedItem.id ? { ...i, tier: tierId } : i) } : l)); setDraggedItem(null); setDragPos(null); };
-  const handleTouchMove = (e: React.TouchEvent) => { setDragPos({ x: e.touches[0].clientX, y: e.touches[0].clientY }); const el = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY); setTouchTarget(el?.closest('[data-tier]')?.getAttribute('data-tier') || null); };
 
   if (activeListId !== null && activeList) {
-      return (
-          <div className={`min-h-screen ${bgMain} ${textMain} pb-safe font-sans flex flex-col`} onTouchMove={draggedItem ? handleTouchMove : undefined} onTouchEnd={() => { if(touchTarget) handleDrop(parseInt(touchTarget.split('-')[0]), touchTarget.split('-')[1]); setDraggedItem(null); }}>
-               <header className={`${bgMain}/90 backdrop-blur-md sticky top-0 z-10 border-b ${border} px-4 py-3 flex justify-between items-center`}>
-                 <div className="flex items-center gap-3"><button onClick={() => setActiveListId(null)} className={`${textSec} hover:${textMain}`}><Menu size={24}/></button><h1 className={`text-lg font-bold tracking-tight ${textMain}`}>{activeList.title}</h1></div>
-                 <SyncIndicator />
-               </header>
-               <div className="p-4 space-y-2 overflow-y-auto">
-                   {tiers.map(tier => (
-                       <div key={tier.id} data-tier={`${activeList.id}-${tier.id}`} className={`flex min-h-[80px] ${bgCard} rounded-lg overflow-hidden border ${border} ${touchTarget === `${activeList.id}-${tier.id}` ? `ring-2 ring-indigo-500` : ''}`}>
-                           <div className={`${tier.color} w-12 flex flex-col items-center justify-center flex-shrink-0 gap-1`}><span className="font-black text-black/50">{tier.id}</span><button onClick={() => { setTargetTier(tier.id); setIsTierItemModalOpen(true); }} className="bg-black/20 rounded text-white p-0.5"><Plus size={14}/></button></div>
-                           <div className="flex-1 p-2 flex flex-wrap gap-2 content-start">
-                               {activeList.items.filter(i => i.tier === tier.id).map(item => (
-                                   <div key={item.id} onTouchStart={(e) => { setDraggedItem(item); setDragPos({x: e.touches[0].clientX, y: e.touches[0].clientY}) }} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border} touch-none ${draggedItem?.id === item.id ? 'opacity-30' : ''}`}><span>{item.name}</span><button onClick={() => setTierlists((prev) => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400"><X size={12}/></button></div>
-                               ))}
-                           </div>
-                       </div>
-                   ))}
-               </div>
-               <Modal isOpen={isTierItemModalOpen} onClose={() => setIsTierItemModalOpen(false)} title={t('addItem')}>
-                   <div className="space-y-4"><Input value={newTierItemName} onChange={e => setNewTierItemName(e.target.value)} placeholder={t('tierItemPlaceholder')} autoFocus /><Button onClick={addTierItem} className="w-full">{t('addItem')}</Button></div>
-               </Modal>
-               {draggedItem && dragPos && <div style={{ position: 'fixed', left: dragPos.x, top: dragPos.y, transform: 'translate(-50%, -150%)', pointerEvents: 'none', zIndex: 100 }} className={`${bgCard} border ${border} px-3 py-2 rounded-lg shadow-xl opacity-90`}><span className={textMain}>{draggedItem.name}</span></div>}
-          </div>
-      )
+    return (
+      <div className={`min-h-screen ${bgMain} ${textMain} flex flex-col`}>
+        <header className={`p-4 border-b ${border} flex justify-between items-center`}>
+          <button onClick={() => setActiveListId(null)} className={textSec}><Menu size={24}/></button>
+          <h1 className="font-bold">{activeList.title}</h1>
+          <SyncIndicator />
+        </header>
+        <div className="p-4 space-y-2">
+          {['S','A','B','C','D'].map(tier => (
+            <div key={tier} className={`flex min-h-[80px] ${bgCard} rounded-lg border ${border} overflow-hidden`}>
+              <div className="bg-red-500 w-12 flex items-center justify-center font-black text-black/50">{tier}</div>
+              <div className="flex-1 p-2 flex flex-wrap gap-2">
+                {activeList.items.filter(i => i.tier === tier).map(item => (
+                  <div key={item.id} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border}`}>
+                    {item.name}
+                    <button onClick={() => setTierlists(prev => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))}><X size={12}/></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className={`min-h-screen ${bgMain} ${textMain} pb-safe font-sans flex flex-col`}>
-       <header className={`${bgMain}/90 backdrop-blur-md sticky top-0 z-10 border-b ${border} px-4 py-3 flex justify-between items-center`}>
-         <div className="flex items-center gap-3"><div className={`w-8 h-8 bg-gradient-to-br ${accent.gradient} rounded-lg flex items-center justify-center font-bold text-white shadow-lg`}>LB</div><h1 className={`text-lg font-bold tracking-tight ${textMain}`}>{t('appTitle')}</h1></div>
-         <div className="flex items-center gap-4">
-           <SyncIndicator />
-           <button onClick={() => setIsSettingsOpen(true)} className={`${textSec} hover:${textMain}`}><Settings size={24} /></button>
-         </div>
-       </header>
-
-       <main className="flex-1 p-4 overflow-y-auto pb-24">
-         {currentTab === 'notes' ? (
-             <div className="space-y-4">
-                 <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 items-center">
-                     <button onClick={() => setIsLabelManagerOpen(true)} className={`h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-lg border ${border} ${bgCard}`}><Settings size={16}/></button>
-                     <button onClick={() => toggleFilter('unlabeled')} className={`h-9 px-3 rounded-lg border flex items-center gap-1 whitespace-nowrap ${activeFilters.includes('unlabeled') ? bgCard : 'border-transparent'}`}><Tag size={14}/> {t('unlabeled')}</button>
-                     {labels.map((l: Label) => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`h-9 px-3 rounded-lg border whitespace-nowrap ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor : 'border-transparent'}`}>{l.name}</button>)}
-                 </div>
-                 <div className="grid grid-cols-2 gap-4">
-                    {filteredNotes.map((n: Note) => <NoteCard key={n.id} note={n} label={labels.find((l) => l.id === n.labelId) || { id: 'u', name: t('unlabeled'), color: 'bg-gray-700', textColor: 'text-gray-200'}} onClick={() => { setCurrentNote(n); setIsNoteModalOpen(true); }} onDelete={(e) => { e.stopPropagation(); setNotes((prev) => prev.filter(x => x.id !== n.id)); }} />)}
-                 </div>
-                 <button onClick={() => { setCurrentNote({}); setIsNoteModalOpen(true); }} className={`fixed bottom-24 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-lg flex items-center justify-center`}><Plus size={28}/></button>
-             </div>
-         ) : (
-             <div className="space-y-4">
-                <Button onClick={() => setIsTierListModalOpen(true)} className="w-full"><Plus size={18}/> {t('newTierList')}</Button>
-                {tierlists.map((t: TierList) => (
-                    <div key={t.id} onClick={() => setActiveListId(t.id)} className={`${bgCard} p-4 rounded-xl border ${border} flex justify-between items-center`}>
-                        <span className="font-bold">{t.title}</span>
-                        <button onClick={(e) => { e.stopPropagation(); setTierlists((prev) => prev.filter(l => l.id !== t.id)); }} className="text-red-400"><Trash2 size={18}/></button>
-                    </div>
-                ))}
-             </div>
-         )}
-       </main>
-
-       <nav className={`fixed bottom-0 left-0 right-0 ${bgMain} border-t ${border} pb-safe flex justify-around items-center`}>
-          <button onClick={() => setCurrentTab('notes')} className={`p-4 flex flex-col items-center gap-1 ${currentTab === 'notes' ? accent.text : textSec}`}><StickyNote size={24} /><span className="text-[10px]">{t('navNotes')}</span></button>
-          <button onClick={() => setCurrentTab('tierlist')} className={`p-4 flex flex-col items-center gap-1 ${currentTab === 'tierlist' ? accent.text : textSec}`}><List size={24} /><span className="text-[10px]">{t('navTiers')}</span></button>
-       </nav>
-
-       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-       <Modal isOpen={isNoteModalOpen} onClose={() => setIsNoteModalOpen(false)} title={currentNote.id ? t('editNote') : t('newNote')} customTheme={{ bg: activeLabel.color, text: activeLabel.textColor }}>
+    <div className={`min-h-screen ${bgMain} ${textMain} flex flex-col`}>
+      <header className={`p-4 border-b ${border} flex justify-between items-center`}>
+        <div className="flex items-center gap-3 font-bold text-lg"><div className={`w-8 h-8 bg-gradient-to-br ${accent.gradient} rounded-lg flex items-center justify-center text-white`}>LB</div>{t('appTitle')}</div>
+        <div className="flex items-center gap-4"><SyncIndicator /><button onClick={() => setIsSettingsOpen(true)} className={textSec}><Settings/></button></div>
+      </header>
+      <main className="flex-1 p-4 overflow-y-auto pb-24">
+        {currentTab === 'notes' ? (
           <div className="space-y-4">
-              <input value={currentNote.title || ''} onChange={e => setCurrentNote({...currentNote, title: e.target.value})} placeholder={t('titlePlaceholder')} className="w-full bg-white/20 border-0 rounded-lg p-3 font-bold placeholder:text-black/50 outline-none text-lg" />
-              <textarea value={currentNote.content || ''} onChange={e => setCurrentNote({...currentNote, content: e.target.value})} placeholder={t('contentPlaceholder')} className="w-full bg-white/20 border-0 rounded-lg p-3 h-64 resize-none outline-none placeholder:text-black/50" />
-              <div className="flex gap-2 flex-wrap">
-                  <button onClick={() => setCurrentNote({...currentNote, labelId: ''})} className={`px-3 py-1 rounded-full border ${currentNote.labelId === '' ? 'bg-white/40' : 'border-transparent'}`}>{t('noLabel')}</button>
-                  {labels.map((l) => <button key={l.id} onClick={() => setCurrentNote({...currentNote, labelId: l.id})} className={`px-3 py-1 rounded-full border ${l.color} ${l.textColor} ${currentNote.labelId === l.id ? 'border-black/20 shadow' : 'border-transparent'}`}>{l.name}</button>)}
-              </div>
-              <Button onClick={saveNote} className="w-full bg-white/40 border-0 text-black">{t('save')}</Button>
+            <div className="flex gap-2 overflow-x-auto pb-2 items-center">
+              <button onClick={() => setIsLabelManagerOpen(true)} className={`h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-lg border ${border} ${bgCard}`}><Settings size={16}/></button>
+              <button onClick={() => toggleFilter('unlabeled')} className={`h-9 px-3 rounded-lg border flex items-center gap-1 whitespace-nowrap ${activeFilters.includes('unlabeled') ? bgCard : 'border-transparent'}`}><Tag size={14}/> {t('unlabeled')}</button>
+              {labels.map(l => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`h-9 px-3 rounded-lg border whitespace-nowrap ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor : 'border-transparent'}`}>{l.name}</button>)}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {filteredNotes.map(n => <NoteCard key={n.id} note={n} label={labels.find(l => l.id === n.labelId) || { id: 'u', name: t('unlabeled'), color: 'bg-gray-700', textColor: 'text-gray-200'}} onClick={() => { setCurrentNote(n); setIsNoteModalOpen(true); }} onDelete={(e) => { e.stopPropagation(); setNotes(prev => prev.filter(x => x.id !== n.id)); }} />)}
+            </div>
+            <button onClick={() => { setCurrentNote({}); setIsNoteModalOpen(true); }} className={`fixed bottom-24 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-lg flex items-center justify-center`}><Plus size={28}/></button>
           </div>
-       </Modal>
-       <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} labels={labels} onAdd={handleCreateLabel} onUpdate={handleUpdateLabel} onDelete={handleDeleteLabel} />
-       <Modal isOpen={isTierListModalOpen} onClose={() => setIsTierListModalOpen(false)} title={t('newTierList')}><div className="space-y-4"><Input value={newTierListTitle} onChange={e => setNewTierListTitle(e.target.value)} placeholder={t('tierListNamePlaceholder')} autoFocus /><Button onClick={createTierList} className="w-full">{t('create')}</Button></div></Modal>
+        ) : (
+          <div className="space-y-4">
+            <Button onClick={() => setIsTierListModalOpen(true)} className="w-full"><Plus size={18}/> {t('newTierList')}</Button>
+            {tierlists.map(t => <div key={t.id} onClick={() => setActiveListId(t.id)} className={`${bgCard} p-4 rounded-xl border ${border} flex justify-between items-center`}><span className="font-bold">{t.title}</span><button onClick={(e) => { e.stopPropagation(); setTierlists(prev => prev.filter(l => l.id !== t.id)); }} className="text-red-400"><Trash2 size={18}/></button></div>)}
+          </div>
+        )}
+      </main>
+      <nav className={`fixed bottom-0 left-0 right-0 ${bgMain} border-t ${border} flex justify-around p-4`}>
+        <button onClick={() => setCurrentTab('notes')} className={currentTab === 'notes' ? accent.text : textSec}><StickyNote/></button>
+        <button onClick={() => setCurrentTab('tierlist')} className={currentTab === 'tierlist' ? accent.text : textSec}><List/></button>
+      </nav>
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} labels={labels} onAdd={(n, c) => setLabels([...labels, {id:Date.now().toString(), name:n, color:c.bg, textColor:c.text}])} onUpdate={(id, n, c) => setLabels(prev => prev.map(l => l.id === id ? {...l, name:n, color:c.bg, textColor:c.text} : l))} onDelete={id => setLabels(prev => prev.filter(l => l.id !== id))} />
+      <Modal isOpen={isNoteModalOpen} onClose={() => setIsNoteModalOpen(false)} title="Note" customTheme={{ bg: activeLabel.color, text: activeLabel.textColor }}>
+        <div className="space-y-4">
+          <input value={currentNote.title || ''} onChange={e => setCurrentNote({...currentNote, title: e.target.value})} className="w-full bg-white/20 rounded-lg p-3 font-bold outline-none" placeholder="Title" />
+          <textarea value={currentNote.content || ''} onChange={e => setCurrentNote({...currentNote, content: e.target.value})} className="w-full bg-white/20 rounded-lg p-3 h-64 resize-none outline-none" placeholder="Content" />
+          <div className="flex gap-2 flex-wrap">{labels.map(l => <button key={l.id} onClick={() => setCurrentNote({...currentNote, labelId: l.id})} className={`px-2 py-1 rounded-full text-xs ${l.color} ${l.textColor}`}>{l.name}</button>)}</div>
+          <Button onClick={saveNote} className="w-full bg-white/20 text-black">Save</Button>
+        </div>
+      </Modal>
+      <Modal isOpen={isTierListModalOpen} onClose={() => setIsTierListModalOpen(false)} title="New List"><div className="space-y-4"><Input value={newTierListTitle} onChange={e => setNewTierListTitle(e.target.value)} /><Button onClick={() => { setTierlists([{id:Date.now(), title:newTierListTitle, items:[]}, ...tierlists]); setIsTierListModalOpen(false); }} className="w-full">Create</Button></div></Modal>
     </div>
   );
-}
+};
 
 const DesktopLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput } = useTheme();
-  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, syncStatus } = useData();
-  
+  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData();
   const [currentTab, setCurrentTab] = useState<'notes' | 'tiers'>('notes');
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [activeListId, setActiveListId] = useState<number | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [search, setSearch] = useState('');
-
-  // Tier States
-  const [isTierListModalOpen, setIsTierListModalOpen] = useState(false);
-  const [newTierListTitle, setNewTierListTitle] = useState('');
   const [addingToTier, setAddingToTier] = useState<string | null>(null);
   const [newTierItemName, setNewTierItemName] = useState('');
 
-  const selectedNote = notes.find((n) => n.id === selectedNoteId);
-  const activeList = tierlists.find((l) => l.id === activeListId);
-  const filteredNotes = notes.filter((n) => 
-    (activeFilters.length === 0 || activeFilters.includes(n.labelId || 'unlabeled')) &&
-    (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase()))
-  );
+  const selectedNote = notes.find(n => n.id === selectedNoteId);
+  const activeList = tierlists.find(l => l.id === activeListId);
+  const filteredNotes = notes.filter(n => (activeFilters.length === 0 || activeFilters.includes(n.labelId || 'unlabeled')) && (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase())));
 
-  const handleUpdateNote = (id: number, updates: Partial<Note>) => {
-      setNotes((prev) => prev.map(n => n.id === id ? { ...n, ...updates } : n));
-  };
-
-  const createNote = () => {
-      const id = Date.now();
-      const newNote = { id, title: '', content: '', labelId: '', date: new Date().toLocaleDateString() };
-      setNotes([newNote, ...notes]);
-      setSelectedNoteId(id);
-  };
-
-  const tiers = [{ id: 'S', color: 'bg-red-500' }, { id: 'A', color: 'bg-orange-500' }, { id: 'B', color: 'bg-yellow-500' }, { id: 'C', color: 'bg-green-500' }, { id: 'D', color: 'bg-blue-500' }];
-  
   return (
     <div className={`min-h-screen flex ${bgMain} ${textMain} font-sans overflow-hidden`}>
-        <aside className={`w-64 border-r ${border} flex flex-col flex-shrink-0 ${bgCard}`}>
-            <div className="p-6 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 bg-gradient-to-br ${accent.gradient} rounded-xl flex items-center justify-center font-bold text-white shadow-lg text-xl`}>LB</div>
-                    <span className="font-bold text-lg">{t('appTitle')}</span>
-                </div>
-                <SyncIndicator />
-            </div>
-            <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-                <button onClick={() => setCurrentTab('notes')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentTab === 'notes' ? `${accent.lightBg} ${accent.text}` : `${textSec} hover:${bgMain}`}`}>
-                    <StickyNote size={18} /> {t('navNotes')} <span className="ml-auto text-xs opacity-60">{notes.length}</span>
-                </button>
-                <button onClick={() => setCurrentTab('tiers')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentTab === 'tiers' ? `${accent.lightBg} ${accent.text}` : `${textSec} hover:${bgMain}`}`}>
-                    <List size={18} /> {t('navTiers')}
-                </button>
-                {currentTab === 'notes' && (
-                    <div className="pt-4">
-                        <div className={`px-3 pb-2 text-xs font-bold uppercase tracking-wider ${textSec} flex justify-between items-center`}>
-                            <span>{t('labels')}</span>
-                            <button onClick={() => setIsLabelManagerOpen(true)} className="hover:text-white"><Settings size={12}/></button>
-                        </div>
-                        <button onClick={() => toggleFilter('unlabeled')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes('unlabeled') ? `${accent.lightBg} ${accent.text}` : `${textSec} hover:${bgMain}`}`}>
-                             <Tag size={16} /> {t('unlabeled')}
-                        </button>
-                        {labels.map((l) => (
-                            <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes(l.id) ? `${l.color} ${l.textColor}` : `${textSec} hover:${bgMain}`}`}>
-                                <div className={`w-3 h-3 rounded-full ${l.color}`} /> {l.name}
-                            </button>
-                        ))}
-                    </div>
-                )}
-            </nav>
-            <div className="p-4 border-t border-gray-800/10 dark:border-white/5">
-                <button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${textSec} hover:${bgMain} hover:${textMain}`}>
-                    <Settings size={18} /> {t('settings')}
-                </button>
-            </div>
-        </aside>
-
-        <div className={`w-80 border-r ${border} flex flex-col flex-shrink-0 bg-opacity-50`}>
-            <div className={`p-4 border-b ${border} flex gap-2`}>
-                {currentTab === 'notes' ? (
-                    <>
-                        <div className="relative flex-1">
-                            <Search size={16} className={`absolute left-3 top-3 ${textSec}`} />
-                            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className={`w-full ${bgInput} rounded-lg pl-9 pr-3 py-2 text-sm border-none outline-none ${textMain}`} />
-                        </div>
-                        <button onClick={createNote} className={`p-2 rounded-lg ${accent.primary} text-white`}><Plus size={20} /></button>
-                    </>
-                ) : (
-                    <Button onClick={() => setIsTierListModalOpen(true)} className="w-full"><Plus size={18}/> {t('newTierList')}</Button>
-                )}
-            </div>
-            <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                {currentTab === 'notes' ? (
-                    filteredNotes.map((note) => {
-                        const l = labels.find((lab) => lab.id === note.labelId);
-                        return (
-                        <div key={note.id} onClick={() => setSelectedNoteId(note.id)} className={`p-3 rounded-xl cursor-pointer border transition-all ${selectedNoteId === note.id ? `ring-2 ring-indigo-500 scale-[1.02]` : `hover:border-gray-500 border-transparent`} ${l ? l.color : bgCard}`}>
-                            <h4 className={`font-bold text-sm truncate ${l ? l.textColor : textMain}`}>{note.title || 'Untitled'}</h4>
-                            <p className={`text-xs truncate mt-1 ${l ? l.textColor : textSec} opacity-80`}>{note.content || 'Empty'}</p>
-                            <span className={`text-[10px] mt-2 block ${l ? l.textColor : textSec} opacity-60`}>{note.date}</span>
-                        </div>
-                    )})
-                ) : (
-                    tierlists.map((list) => (
-                        <div key={list.id} onClick={() => setActiveListId(list.id)} className={`p-3 rounded-xl cursor-pointer border transition-all flex justify-between ${activeListId === list.id ? `${accent.lightBg} ${accent.border}` : `${bgCard} border-transparent`}`}>
-                            <span className="font-bold">{list.title}</span>
-                            <button onClick={(e) => { e.stopPropagation(); setTierlists((prev) => prev.filter(l => l.id !== list.id)); }} className="text-red-400"><Trash2 size={16}/></button>
-                        </div>
-                    ))
-                )}
-            </div>
+      <aside className={`w-64 border-r ${border} flex flex-col ${bgCard}`}>
+        <div className="p-6 flex items-center justify-between"><div className="font-bold flex items-center gap-3"><div className={`w-10 h-10 bg-gradient-to-br ${accent.gradient} rounded-xl flex items-center justify-center text-white shadow-lg`}>LB</div>LifeBase</div><SyncIndicator /></div>
+        <nav className="flex-1 px-3 space-y-1">
+          <button onClick={() => setCurrentTab('notes')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg ${currentTab === 'notes' ? accent.lightBg + ' ' + accent.text : textSec}`}>{t('navNotes')}</button>
+          <button onClick={() => setCurrentTab('tiers')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg ${currentTab === 'tiers' ? accent.lightBg + ' ' + accent.text : textSec}`}>{t('navTiers')}</button>
+          <div className="pt-4 px-3 text-xs font-bold uppercase opacity-40 flex justify-between">Labels<button onClick={() => setIsLabelManagerOpen(true)}><Settings size={12}/></button></div>
+          {labels.map(l => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor : textSec}`}><div className={`w-2 h-2 rounded-full ${l.color}`}/>{l.name}</button>)}
+        </nav>
+        <div className="p-4"><button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${textSec}`}><Settings size={18}/>{t('settings')}</button></div>
+      </aside>
+      <div className={`w-80 border-r ${border} flex flex-col bg-opacity-50`}>
+        <div className={`p-4 border-b ${border} flex gap-2`}>
+          {currentTab === 'notes' ? (
+            <><div className="relative flex-1"><Search size={16} className={`absolute left-3 top-3 ${textSec}`} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className={`w-full ${bgInput} rounded-lg pl-9 pr-3 py-2 text-sm outline-none ${textMain}`} /></div><button onClick={() => { const id = Date.now(); setNotes([{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...notes]); setSelectedNoteId(id); }} className={`p-2 rounded-lg ${accent.primary} text-white`}><Plus size={20}/></button></>
+          ) : <Button onClick={() => { const id = Date.now(); setTierlists([{id, title:'New Ranking', items:[]}, ...tierlists]); setActiveListId(id); }} className="w-full">New Ranking</Button>}
         </div>
-
-        <main className={`flex-1 flex flex-col ${bgMain} overflow-hidden`}>
-            {currentTab === 'notes' ? (
-                selectedNote ? (
-                    <div className="flex-1 flex flex-col max-w-3xl mx-auto w-full p-8 h-full overflow-y-auto">
-                        <div className="flex items-center justify-between mb-6">
-                            <div className="flex gap-2">
-                                <button onClick={() => handleUpdateNote(selectedNote.id, { labelId: '' })} className={`px-2 py-1 rounded border text-xs ${!selectedNote.labelId ? 'bg-white/20' : 'border-transparent opacity-50'}`}>No Label</button>
-                                {labels.map((l) => (
-                                    <button 
-                                        key={l.id} 
-                                        onClick={() => handleUpdateNote(selectedNote.id, { labelId: l.id })}
-                                        className={`w-6 h-6 rounded-full border-2 transition-transform ${selectedNote.labelId === l.id ? 'scale-110 border-white' : 'border-transparent opacity-50 hover:opacity-100'}`}
-                                    >
-                                        <div className={`w-full h-full rounded-full ${l.color}`}></div>
-                                    </button>
-                                ))}
-                            </div>
-                            <button onClick={() => { setNotes((prev) => prev.filter(n => n.id !== selectedNote.id)); setSelectedNoteId(null); }} className="text-red-400 hover:bg-red-400/10 p-2 rounded-lg"><Trash2 size={20} /></button>
-                        </div>
-                        <input value={selectedNote.title} onChange={(e) => handleUpdateNote(selectedNote.id, { title: e.target.value })} placeholder="Title..." className="text-4xl font-bold bg-transparent border-none outline-none mb-4 placeholder:opacity-30" />
-                        <textarea value={selectedNote.content} onChange={(e) => handleUpdateNote(selectedNote.id, { content: e.target.value })} placeholder="Write something..." className={`flex-1 bg-transparent border-none outline-none text-lg leading-relaxed resize-none ${textSec}`} />
-                    </div>
-                ) : (
-                    <div className="flex-1 flex items-center justify-center text-center opacity-30"><StickyNote size={64} className="mb-4" /></div>
-                )
-            ) : (
-                activeList ? (
-                    <div className="flex-1 p-8 overflow-y-auto">
-                        <h2 className="text-3xl font-bold mb-6">{activeList.title}</h2>
-                        <div className="space-y-4">
-                            {tiers.map(tier => (
-                                <div key={tier.id} className={`flex min-h-[100px] ${bgCard} rounded-xl border ${border} overflow-hidden`}>
-                                    <div className={`${tier.color} w-24 flex flex-col items-center justify-center flex-shrink-0`}><span className="text-2xl font-black text-black/50">{tier.id}</span><button onClick={() => setAddingToTier(tier.id)} className="mt-2 bg-black/20 text-white p-1 rounded hover:bg-black/40"><Plus size={16}/></button></div>
-                                    <div className="flex-1 p-4 flex flex-wrap gap-3 content-start">
-                                        {activeList.items.filter((i) => i.tier === tier.id).map((item) => (
-                                            <div key={item.id} className={`${bgInput} px-4 py-2 rounded-lg shadow border ${border} flex items-center gap-2 group`}>
-                                                <span className="font-medium">{item.name}</span>
-                                                <button onClick={() => setTierlists((prev) => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <Modal isOpen={!!addingToTier} onClose={() => setAddingToTier(null)} title={`${t('addItem')} - ${addingToTier}`}>
-                            <div className="space-y-4"><Input value={newTierItemName} onChange={(e) => setNewTierItemName(e.target.value)} placeholder={t('tierItemPlaceholder')} autoFocus /><Button onClick={() => { if(!newTierItemName.trim() || !addingToTier) return; setTierlists((prev) => prev.map(l => l.id === activeListId ? { ...l, items: [...l.items, { id: Date.now(), name: newTierItemName, tier: addingToTier }] } : l)); setNewTierItemName(''); setAddingToTier(null); }} className="w-full">{t('addItem')}</Button></div>
-                        </Modal>
-                    </div>
-                ) : (
-                    <div className="flex-1 flex items-center justify-center opacity-30"><List size={64}/></div>
-                )
-            )}
-        </main>
-
-        <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-        <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} labels={labels} onAdd={(n, c) => setLabels([...labels, { id: Date.now().toString(), name: n, color: c.bg, textColor: c.text }])} onUpdate={(id, n, c) => setLabels(labels.map(l => l.id === id ? { ...l, name: n, color: c.bg, textColor: c.text } : l))} onDelete={id => { setLabels(labels.filter(l => l.id !== id)); setNotes(notes.map(n => n.labelId === id ? { ...n, labelId: '' } : n)); }} />
-        <Modal isOpen={isTierListModalOpen} onClose={() => setIsTierListModalOpen(false)} title={t('newTierList')}>
-           <div className="space-y-4"><Input value={newTierListTitle} onChange={(e) => setNewTierListTitle(e.target.value)} placeholder={t('tierListNamePlaceholder')} autoFocus /><Button onClick={() => { if(!newTierListTitle.trim()) return; setTierlists([{ id: Date.now(), title: newTierListTitle, items: [] }, ...tierlists]); setActiveListId(Date.now()); setNewTierListTitle(''); setIsTierListModalOpen(false); }} className="w-full">{t('create')}</Button></div>
-        </Modal>
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+          {currentTab === 'notes' ? filteredNotes.map(n => { const l = labels.find(lab => lab.id === n.labelId); return <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`p-3 rounded-xl cursor-pointer border ${selectedNoteId === n.id ? 'ring-2 ring-indigo-500' : 'border-transparent'} ${l ? l.color + ' ' + l.textColor : bgCard}`}><h4 className="font-bold truncate">{n.title || 'Untitled'}</h4></div>})
+          : tierlists.map(list => <div key={list.id} onClick={() => setActiveListId(list.id)} className={`p-3 rounded-xl cursor-pointer flex justify-between ${activeListId === list.id ? accent.lightBg : bgCard}`}><span className="font-bold">{list.title}</span><button onClick={(e) => { e.stopPropagation(); setTierlists(prev => prev.filter(l => l.id !== list.id)); }} className="text-red-400"><Trash2 size={16}/></button></div>)}
+        </div>
+      </div>
+      <main className="flex-1 flex flex-col">
+        {currentTab === 'notes' ? (
+          selectedNote ? <div className="flex-1 p-10 max-w-3xl mx-auto w-full space-y-6 overflow-y-auto"><div className="flex gap-2">{labels.map(l => <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId:l.id} : n))} className={`w-6 h-6 rounded-full ${l.color} border-2 ${selectedNote.labelId === l.id ? 'border-white' : 'border-transparent'}`}/>)}<button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId:''} : n))} className="text-xs underline">None</button><button onClick={() => {setNotes(prev => prev.filter(n => n.id !== selectedNoteId)); setSelectedNoteId(null)}} className="ml-auto text-red-400"><Trash2/></button></div><input value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title:e.target.value} : n))} className="text-4xl font-bold bg-transparent outline-none w-full" placeholder="Title..." /><textarea value={selectedNote.content} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content:e.target.value} : n))} className="flex-1 w-full bg-transparent outline-none text-lg resize-none" placeholder="Write..." /></div>
+          : <div className="flex-1 flex items-center justify-center opacity-20"><StickyNote size={100}/></div>
+        ) : activeList ? <div className="flex-1 p-8 overflow-y-auto"><h2 className="text-3xl font-bold mb-6">{activeList.title}</h2><div className="space-y-4">{['S','A','B','C','D'].map(tier => <div key={tier} className={`flex min-h-[100px] ${bgCard} rounded-xl border ${border} overflow-hidden`}><div className="bg-red-500 w-24 flex flex-col items-center justify-center"><span className="text-2xl font-black text-black/50">{tier}</span><button onClick={() => setAddingToTier(tier)} className="bg-black/20 text-white p-1 rounded mt-2"><Plus size={16}/></button></div><div className="flex-1 p-4 flex flex-wrap gap-3">{activeList.items.filter(i => i.tier === tier).map(item => <div key={item.id} className={`${bgInput} px-4 py-2 rounded-lg border ${border} flex items-center gap-2`}>{item.name}<button onClick={() => setTierlists(prev => prev.map(l => l.id === activeListId ? {...l, items:l.items.filter(it => it.id !== item.id)} : l))} className="text-red-400"><X size={14}/></button></div>)}</div></div>)}</div><Modal isOpen={!!addingToTier} onClose={() => setAddingToTier(null)} title="Add Item"><div className="space-y-4"><Input value={newTierItemName} onChange={e => setNewTierItemName(e.target.value)} autoFocus /><Button onClick={() => { if(!newTierItemName.trim() || !addingToTier) return; setTierlists(prev => prev.map(l => l.id === activeListId ? {...l, items:[...l.items, {id:Date.now(), name:newTierItemName, tier:addingToTier}]} : l)); setNewTierItemName(''); setAddingToTier(null); }} className="w-full">Add</Button></div></Modal></div>
+        : <div className="flex-1 flex items-center justify-center opacity-30"><List size={64}/></div>}
+      </main>
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} labels={labels} onAdd={(n, c) => setLabels([...labels, {id:Date.now().toString(), name:n, color:c.bg, textColor:c.text}])} onUpdate={(id, n, c) => setLabels(prev => prev.map(l => l.id === id ? {...l, name:n, color:c.bg, textColor:c.text} : l))} onDelete={id => setLabels(prev => prev.filter(l => l.id !== id))} />
     </div>
   );
-}
-
-const App: React.FC = () => {
-  return (
-    <ThemeProvider>
-      <DataProvider>
-        <div className="md:hidden h-screen w-screen overflow-hidden"><MobileLayout /></div>
-        <div className="hidden md:block h-screen w-screen overflow-hidden"><DesktopLayout /></div>
-      </DataProvider>
-    </ThemeProvider>
-  );
 };
+
+const App: React.FC = () => (
+  <ThemeProvider><DataProvider>
+    <div className="md:hidden h-screen w-screen overflow-hidden"><MobileLayout /></div>
+    <div className="hidden md:block h-screen w-screen overflow-hidden"><DesktopLayout /></div>
+  </DataProvider></ThemeProvider>
+);
 export default App;
