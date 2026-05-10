@@ -283,7 +283,7 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
-  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, fileHandle, setFileHandle } = useData() as any;
+  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData() as any;
   const [currentTab, setCurrentTab] = useState<'notes' | 'tierlist'>('notes');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
@@ -309,47 +309,25 @@ const MobileLayout = () => {
   const activeList = tierlists.find((l: TierList) => l.id === activeListId);
   const tiers = [{ id: 'S', color: 'bg-red-500' }, { id: 'A', color: 'bg-orange-500' }, { id: 'B', color: 'bg-yellow-500' }, { id: 'C', color: 'bg-green-500' }, { id: 'D', color: 'bg-blue-500' }];
 
-  const handleQuickSync = async () => {
+  const handleQuickSync = () => {
     try {
-      if ('showOpenFilePicker' in window) {
-        const [handle] = await (window as any).showOpenFilePicker({
-          types: [{ description: 'JSON Files', accept: { 'application/json': ['.json'] } }]
-        });
-        
-        if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
-          const perm = await handle.requestPermission({ mode: 'readwrite' });
-          if (perm !== 'granted') {
-            alert('Write permission was denied. Auto-save will not work.');
-            return;
-          }
-        }
-
-        setFileHandle(handle);
-        const file = await handle.getFile();
-        const text = await file.text();
-        const data = JSON.parse(text);
-        setNotes(data.notes || []);
-        setTierlists(data.tierlists || []);
-        setLabels(data.labels || []);
-        alert('NAS Synced! Auto-Save is now fully active.');
-      } else {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.json';
-        input.onchange = (e: any) => {
-          const file = e.target.files[0];
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            const data = JSON.parse(ev.target?.result as string);
-            setNotes(data.notes || []);
-            setTierlists(data.tierlists || []);
-            setLabels(data.labels || []);
-            alert('Data Imported!');
-          };
-          reader.readAsText(file);
+      // Force mobile to ALWAYS use the standard file input importer
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = (e: any) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const data = JSON.parse(ev.target?.result as string);
+          setNotes(data.notes || []);
+          setTierlists(data.tierlists || []);
+          setLabels(data.labels || []);
+          alert('Data Imported from NAS!');
         };
-        input.click();
-      }
+        reader.readAsText(file);
+      };
+      input.click();
     } catch (e) {
       console.error(e);
     }
@@ -426,9 +404,10 @@ const MobileLayout = () => {
          <div className="flex items-center gap-3"><div className={`w-8 h-8 bg-gradient-to-br ${accent.gradient} rounded-lg flex items-center justify-center font-bold text-white shadow-lg`}>LB</div><h1 className={`text-lg font-bold tracking-tight ${textMain}`}>{t('appTitle')}</h1></div>
          
          <div className="flex items-center gap-4">
-           <button onClick={handleQuickSync} className={`${fileHandle ? 'text-green-500' : textSec} hover:${textMain} flex items-center gap-1`}>
+           {/* Mobile Import Sync Button */}
+           <button onClick={handleQuickSync} className={`${textSec} hover:${textMain} flex items-center gap-1`}>
              <Download size={20} />
-             <span className="text-xs font-bold">{fileHandle ? 'Linked' : 'Sync'}</span>
+             <span className="text-xs font-bold">Sync</span>
            </button>
            <button onClick={() => setIsSettingsOpen(true)} className={`${textSec} hover:${textMain}`}><Settings size={24} /></button>
          </div>
@@ -724,7 +703,7 @@ const DesktopLayout = () => {
                                         {activeList.items.filter((i: TierItem) => i.tier === tier.id).map((item: TierItem) => (
                                             <div key={item.id} className={`${bgInput} px-4 py-2 rounded-lg shadow border ${border} flex items-center gap-2 group`}>
                                                 <span className="font-medium">{item.name}</span>
-                                                <button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter((i: TierItem) => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
+                                                <button onClick={() => setTierlists((prev: TierList[]) => prev.map(l => l.id === activeList.id ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
                                             </div>
                                         ))}
                                     </div>
