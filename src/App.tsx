@@ -2,12 +2,12 @@ import React, { useState, useEffect, useRef, createContext, useContext, type Rea
 import { 
   StickyNote, List, Plus, Trash2, X, 
   Settings, Menu, Download, Upload, 
-  Moon, Sun, Pencil, Tag, Search, Cloud, CloudOff
+  Pencil, Tag, Search, Cloud, CloudOff
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 // ==========================================
-// 1. SAFE CONFIGURATION
+// 1. CLOUD CONFIGURATION
 // ==========================================
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''; 
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -15,18 +15,34 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================
-// 2. TYPES
+// 2. TYPES & LOGIC
 // ==========================================
+
 type ThemeMode = 'dark' | 'light';
 type AccentKey = 'indigo' | 'rose' | 'emerald' | 'amber' | 'cyan' | 'violet';
 type Language = 'de' | 'en' | 'tr';
+
 interface Label { id: string; name: string; color: string; textColor: string; }
 interface Note { id: number; title: string; content: string; labelId: string; date: string; }
 interface TierItem { id: number; name: string; tier: string; }
 interface TierList { id: number; title: string; items: TierItem[]; }
 interface AccentProfile { name: string; primary: string; hover: string; text: string; ring: string; lightBg: string; border: string; gradient: string; }
-interface ThemeContextType { bgMain: string; bgCard: string; bgInput: string; textMain: string; textSec: string; border: string; modalOverlay: string; accent: AccentProfile; mode: ThemeMode; setMode: (m: ThemeMode) => void; accentKey: AccentKey; setAccentKey: (k: AccentKey) => void; language: Language; setLanguage: (l: Language) => void; t: (k: string) => string; }
-interface DataContextType { notes: Note[]; setNotes: React.Dispatch<React.SetStateAction<Note[]>>; tierlists: TierList[]; setTierlists: React.Dispatch<React.SetStateAction<TierList[]>>; labels: Label[]; setLabels: React.Dispatch<React.SetStateAction<Label[]>>; activeFilters: string[]; setActiveFilters: React.Dispatch<React.SetStateAction<string[]>>; toggleFilter: (id: string) => void; syncStatus: 'synced' | 'syncing' | 'error'; }
+
+interface ThemeContextType {
+  bgMain: string; bgCard: string; bgInput: string; textMain: string; textSec: string; border: string; modalOverlay: string;
+  accent: AccentProfile; mode: ThemeMode; setMode: (m: ThemeMode) => void;
+  accentKey: AccentKey; setAccentKey: (k: AccentKey) => void;
+  language: Language; setLanguage: (l: Language) => void; t: (k: string) => string;
+}
+
+interface DataContextType {
+  notes: Note[]; setNotes: React.Dispatch<React.SetStateAction<Note[]>>;
+  tierlists: TierList[]; setTierlists: React.Dispatch<React.SetStateAction<TierList[]>>;
+  labels: Label[]; setLabels: React.Dispatch<React.SetStateAction<Label[]>>;
+  activeFilters: string[]; setActiveFilters: React.Dispatch<React.SetStateAction<string[]>>;
+  toggleFilter: (id: string) => void;
+  syncStatus: 'synced' | 'syncing' | 'error';
+}
 
 const defaultLabels: Label[] = [
   { id: '1', name: 'Allgemein', color: 'bg-yellow-200', textColor: 'text-yellow-900' },
@@ -70,6 +86,9 @@ const accents: Record<AccentKey, AccentProfile> = {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+const useTheme = () => { const c = useContext(ThemeContext); if (!c) throw new Error('useTheme missing'); return c; };
+const useData = () => { const c = useContext(DataContext); if (!c) throw new Error('useData missing'); return c; };
+
 const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => (localStorage.getItem('lb_theme_mode') as ThemeMode) || 'dark');
   const [accentKey, setAccentKey] = useState<AccentKey>(() => (localStorage.getItem('lb_theme_accent') as AccentKey) || 'indigo');
@@ -109,9 +128,11 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
   useEffect(() => {
     const channel = supabase.channel('db-sync').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data' }, (payload: any) => {
-      setLabels(payload.new.labels);
-      setNotes(payload.new.notes);
-      setTierlists(payload.new.tierlists);
+      if (payload.new) {
+        setLabels(payload.new.labels);
+        setNotes(payload.new.notes);
+        setTierlists(payload.new.tierlists);
+      }
     }).subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
@@ -131,12 +152,6 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   return <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus }}>{children}</DataContext.Provider>;
 };
 
-const useTheme = () => { const c = useContext(ThemeContext); if (!c) throw new Error('useTheme missing'); return c; };
-const useData = () => { const c = useContext(DataContext); if (!c) throw new Error('useData missing'); return c; };
-
-// ==========================================
-// 3. COMPONENTS
-// ==========================================
 const SyncIndicator = () => {
   const { syncStatus } = useData();
   if (syncStatus === 'syncing') return <div className="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full" />;
@@ -154,17 +169,20 @@ const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => 
   return <input className={`w-full ${bgInput} border ${border} rounded-xl px-4 py-3 ${textMain} placeholder:${textSec} focus:outline-none focus:ring-2 ${accent.ring} focus:border-transparent transition-all ${props.className}`} {...props} />;
 };
 
-const Modal: React.FC<{ isOpen: boolean; onClose: () => void; title: string; children: ReactNode; customTheme?: { bg: string; text: string } }> = ({ isOpen, onClose, title, children, customTheme }) => {
+interface ModalProps { isOpen: boolean; onClose: () => void; title: string; children: ReactNode; customTheme?: { bg: string; text: string }; }
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, customTheme }) => {
   const { bgCard, border, textMain, textSec, modalOverlay } = useTheme();
   const finalBg = customTheme ? customTheme.bg : bgCard;
   const finalText = customTheme ? customTheme.text : textMain;
+  const finalBorder = customTheme ? 'border-transparent' : border;
+  const closeBtnClass = customTheme ? `hover:bg-black/10 ${customTheme.text}` : `${textSec} hover:${textMain}`;
   if (!isOpen) return null;
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in duration-200`}>
-      <div className={`${finalBg} w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border ${customTheme ? 'border-transparent' : border} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200`}>
+      <div className={`${finalBg} w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border ${finalBorder} shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 transition-colors duration-300`}>
         <div className={`flex-shrink-0 flex items-center justify-between p-4 border-b ${customTheme ? 'border-black/5' : border}`}>
           <h3 className={`text-lg font-bold ${finalText}`}>{title}</h3>
-          <button onClick={onClose} className={customTheme ? finalText : textSec}><X size={20} /></button>
+          <button onClick={onClose} className={closeBtnClass}><X size={20} /></button>
         </div>
         <div className={`p-4 overflow-y-auto ${finalText}`}>{children}</div>
       </div>
@@ -216,16 +234,13 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
       <div className="space-y-8">
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('appearance')}</h4><div className={`${bgInput} p-1 rounded-xl flex border ${border}`}><button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg text-sm ${mode === 'light' ? 'bg-white text-black' : 'opacity-50'}`}>{t('light')}</button><button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg text-sm ${mode === 'dark' ? 'bg-gray-700 text-white' : 'opacity-50'}`}>{t('dark')}</button></div></div>
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <button key={l} onClick={() => setLanguage(l as any)} className={`flex-1 py-2 rounded-xl border-2 ${language === l ? border : 'border-transparent opacity-50'}`}>{l.toUpperCase()}</button>)}</div></div>
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('backup')}</h4><div className="space-y-2"><Button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getExportData()], {type: 'application/json'})); a.download = 'backup.json'; a.click(); }} variant="secondary" className="w-full justify-between"><span>{t('saveToFile')}</span><Download size={18}/></Button><input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (ev) => handleImport(ev.target?.result as string); r.readAsText(f); }}} className="hidden" /><Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>{t('loadFromFile')}</span><Upload size={18}/></Button></div></div>
+         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('backup')}</h4><div className="space-y-2"><Button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getExportData()], {type: 'application/json'})); a.download = 'lifebase_backup.json'; a.click(); }} variant="secondary" className="w-full justify-between"><span>{t('saveToFile')}</span><Download size={18}/></Button><input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (ev) => handleImport(ev.target?.result as string); r.readAsText(f); }}} className="hidden" /><Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>{t('loadFromFile')}</span><Upload size={18}/></Button></div></div>
          <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl flex gap-3 items-start"><Cloud className="text-indigo-500 shrink-0" size={20} /><p className="text-xs text-indigo-600 dark:text-indigo-200/80">{t('dataInfo')}</p></div>
       </div>
     </Modal>
   );
 };
 
-// ==========================================
-// 4. LAYOUTS
-// ==========================================
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
   const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData();
@@ -374,9 +389,12 @@ const DesktopLayout = () => {
 };
 
 const App: React.FC = () => (
-  <ThemeProvider><DataProvider>
-    <div className="md:hidden h-screen w-screen overflow-hidden"><MobileLayout /></div>
-    <div className="hidden md:block h-screen w-screen overflow-hidden"><DesktopLayout /></div>
-  </DataProvider></ThemeProvider>
+  <ThemeProvider>
+    <DataProvider>
+      <div className="md:hidden h-screen w-screen overflow-hidden"><MobileLayout /></div>
+      <div className="hidden md:block h-screen w-screen overflow-hidden"><DesktopLayout /></div>
+    </DataProvider>
+  </ThemeProvider>
 );
+
 export default App;
