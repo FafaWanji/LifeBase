@@ -119,7 +119,10 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         console.log('Auto-saved to NAS!');
       } catch (e) {
         console.error('Failed to write to NAS file', e);
-        alert('Error: Could not save to NAS. Is the file locked or network down?');
+        // Only alert if it's a real failure, not just a background DOM exception
+        if (e instanceof Error && e.name !== 'DOMException') {
+            alert('Error: Could not save to NAS. Is the file locked or network down?');
+        }
       }
     };
     
@@ -283,7 +286,6 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
-  // REMOVED fileHandle and setFileHandle from here!
   const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData() as any;
   const [currentTab, setCurrentTab] = useState<'notes' | 'tierlist'>('notes');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -312,30 +314,54 @@ const MobileLayout = () => {
 
   const handleQuickSync = () => {
     try {
-      // FORCE MOBILE TO USE STANDARD UPLOAD - NO AUTO SAVE
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.json';
       input.onchange = (e: any) => {
         const file = e.target.files[0];
         if (!file) return;
+        
         const reader = new FileReader();
+        
         reader.onload = (ev) => {
           try {
-            const data = JSON.parse(ev.target?.result as string);
+            const text = ev.target?.result as string;
+            
+            // Check if file is completely empty
+            if (!text || text.trim() === '') {
+              alert('Import Failed: The selected file is completely empty. The PC might have saved a blank file.');
+              return;
+            }
+            
+            const data = JSON.parse(text);
+            
+            // Ensure data structure exists
+            if (!data || typeof data !== 'object') {
+                alert('Import Failed: File does not contain valid LifeBase data.');
+                return;
+            }
+
             setNotes(data.notes || []);
             setTierlists(data.tierlists || []);
             setLabels(data.labels || []);
-            alert('Data Imported from NAS!');
-          } catch (err) {
-            alert('Error reading JSON file');
+            alert('Data Imported from NAS successfully!');
+          } catch (err: any) {
+            // Enhanced error tracking
+            const preview = String(ev.target?.result).substring(0, 40);
+            alert(`Parsing Error: ${err.message}\n\nFile preview: ${preview}...`);
           }
         };
+
+        reader.onerror = () => {
+            alert("Error: Android failed to read the file from the network drive. Check file permissions.");
+        };
+
         reader.readAsText(file);
       };
       input.click();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      alert('Error triggering file picker: ' + e.message);
     }
   };
 
@@ -475,7 +501,6 @@ const MobileLayout = () => {
 
 const DesktopLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput } = useTheme();
-  // Desktop layout STILL needs fileHandle and setFileHandle for Auto-Save!
   const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, fileHandle, setFileHandle } = useData() as any;
   
   const [currentTab, setCurrentTab] = useState<'notes' | 'tiers'>('notes');
@@ -536,7 +561,7 @@ const DesktopLayout = () => {
               setNotes(data.notes || []);
               setTierlists(data.tierlists || []);
               setLabels(data.labels || []);
-              alert('Data Imported!');
+              alert('Data Imported from NAS!');
             } catch (err) {
               alert('Error reading JSON file');
             }
