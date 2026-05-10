@@ -283,7 +283,8 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
 
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
-  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, fileHandle, setFileHandle } = useData() as any;
+  // REMOVED fileHandle and setFileHandle from here!
+  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData() as any;
   const [currentTab, setCurrentTab] = useState<'notes' | 'tierlist'>('notes');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
@@ -474,6 +475,7 @@ const MobileLayout = () => {
 
 const DesktopLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput } = useTheme();
+  // Desktop layout STILL needs fileHandle and setFileHandle for Auto-Save!
   const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, fileHandle, setFileHandle } = useData() as any;
   
   const [currentTab, setCurrentTab] = useState<'notes' | 'tiers'>('notes');
@@ -534,7 +536,7 @@ const DesktopLayout = () => {
               setNotes(data.notes || []);
               setTierlists(data.tierlists || []);
               setLabels(data.labels || []);
-              alert('Data Imported from NAS!');
+              alert('Data Imported!');
             } catch (err) {
               alert('Error reading JSON file');
             }
