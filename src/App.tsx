@@ -312,70 +312,74 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   const { setNotes } = useData();
   const [swipeX, setSwipeX] = useState(0);
   const [hoverRatio, setHoverRatio] = useState<number | null>(null);
+  const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const touchStartX = useRef(0);
 
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (currentTab === 'trash') return;
     const diff = e.touches[0].clientX - touchStartX.current;
-    if (diff > 0) setSwipeX(diff);
+    if (currentTab === 'notes' && diff > 0) setSwipeX(diff);
+    if (currentTab === 'trash' && diff < 0) setSwipeX(diff);
   };
   
   const handleTouchEnd = () => {
-    if (currentTab === 'trash') return;
-    if (swipeX > 100) {
+    if (currentTab === 'notes' && swipeX > 100) {
       setSwipeX(window.innerWidth);
+      setIsAnimatingOut(true);
       setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)), 250);
-    } else setSwipeX(0);
+    } else if (currentTab === 'trash' && swipeX < -100) {
+      setSwipeX(-window.innerWidth);
+      setIsAnimatingOut(true);
+      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: false} : x)), 250);
+    } else {
+      setSwipeX(0);
+    }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (currentTab === 'trash') return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    setHoverRatio(x / rect.width);
+    setHoverRatio((e.clientX - rect.left) / rect.width);
   };
 
   let overlayBg = 'transparent';
   if (hoverRatio !== null && currentTab !== 'trash') {
     const isLeft = hoverRatio < 0.5;
     const intensity = isLeft ? (0.5 - hoverRatio) * 2 : (hoverRatio - 0.5) * 2;
-    overlayBg = isLeft ? `rgba(234, 179, 8, ${intensity * 0.15})` : `rgba(239, 68, 68, ${intensity * 0.15})`;
+    overlayBg = isLeft 
+      ? `linear-gradient(to right, rgba(234,179,8,${intensity * 0.25}), transparent)` 
+      : `linear-gradient(to left, rgba(239,68,68,${intensity * 0.25}), transparent)`;
   }
 
   return (
-    <div className="relative mb-3 rounded-2xl overflow-hidden shrink-0">
-      <div className="absolute inset-0 bg-red-500 flex items-center px-6 text-white justify-start">
-        <Trash2 size={24} />
+    <div className={`relative mb-3 rounded-2xl overflow-hidden shrink-0 transition-all duration-300 ${isAnimatingOut ? 'h-0 opacity-0 mb-0 scale-95' : 'opacity-100'} ${isSelected ? `ring-2 ${accent.ring} shadow-md` : `ring-2 ring-transparent border-2 border-transparent hover:border-black/10 dark:hover:border-white/10`}`}>
+      <div className={`absolute inset-0 flex items-center px-6 text-white ${currentTab === 'notes' ? 'bg-red-500 justify-start' : 'bg-green-500 justify-end'}`}>
+        {currentTab === 'notes' ? <Trash2 size={24} /> : <RefreshCw size={24} />}
       </div>
+      
       <div 
         onClick={() => onClick(note.id)}
         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         onMouseMove={handleMouseMove} onMouseLeave={() => setHoverRatio(null)}
-        style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? 'transform 0.25s ease-out' : 'none' }}
-        className={`group relative p-4 rounded-2xl cursor-pointer ring-inset transition-all box-border
-          ${isSelected ? `ring-2 ${accent.ring} shadow-md` : 'ring-2 ring-transparent hover:ring-black/10 dark:hover:ring-white/10'} 
-          ${label ? label.color + ' ' + label.textColor : bgCard} 
-          ${currentTab === 'trash' ? 'opacity-50 grayscale pointer-events-none' : ''}`}
+        style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? 'transform 0.2s ease-out' : 'none', background: overlayBg }}
+        className={`group relative p-4 cursor-pointer box-border h-full ${label ? label.color + ' ' + label.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-70 grayscale' : ''}`}
       >
-        <div className="absolute inset-0 rounded-2xl pointer-events-none transition-colors duration-75" style={{ backgroundColor: overlayBg }} />
-        
-        {currentTab !== 'trash' && (
-          <>
-            <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isPinned: !x.isPinned, updatedAt: Date.now()} : x)); }} className={`absolute left-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex ${note.isPinned ? 'text-yellow-600' : 'hover:text-yellow-600'}`}>
-              <Pin size={16} fill={note.isPinned ? "currentColor" : "none"} />
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)); }} className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex hover:text-red-600">
-              <Trash2 size={16} />
-            </button>
-          </>
-        )}
+        <div className="absolute inset-y-0 left-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex">
+          {currentTab === 'notes' && <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isPinned: !x.isPinned, updatedAt: Date.now()} : x)); }} className={`p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 ${note.isPinned ? 'text-yellow-600' : 'hover:text-yellow-600'}`}><Pin size={16} fill={note.isPinned ? "currentColor" : "none"} /></button>}
+        </div>
+        <div className="absolute inset-y-0 right-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex">
+          {currentTab === 'notes' ? (
+            <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)); }} className="p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 hover:text-red-600"><Trash2 size={16} /></button>
+          ) : (
+            <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: false} : x)); }} className="p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 hover:text-green-600"><RefreshCw size={16} /></button>
+          )}
+        </div>
 
         <div className="relative z-0">
            {label && <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-80">{label.name}</div>}
            <div className="flex justify-between items-start gap-2">
              <h4 className="font-bold text-base leading-tight line-clamp-1">{note.title || 'Untitled'}</h4>
-             {note.isPinned && <Pin size={12} fill="currentColor" className="opacity-50 shrink-0 mt-1 md:hidden"/>}
+             {note.isPinned && currentTab !== 'trash' && <Pin size={12} fill="currentColor" className="opacity-50 shrink-0 mt-1 md:hidden"/>}
            </div>
            <p className="text-xs opacity-70 mt-1 line-clamp-2 leading-relaxed font-mono">{note.content || '...'}</p>
         </div>
@@ -483,7 +487,7 @@ const MainLayout = () => {
     setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString(), updatedAt: id}, ...prev]); 
     setSelectedNoteId(id); 
     setIsPreview(false);
-    setTimeout(() => titleRef.current?.focus(), 100);
+    setTimeout(() => { if (titleRef.current) titleRef.current.focus(); }, 100);
   };
 
   const handleCopy = () => {
@@ -581,7 +585,7 @@ const MainLayout = () => {
             </div>
 
             {currentTab === 'notes' && (
-              <div className="hidden md:flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0">
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0">
                 <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: '', updatedAt: Date.now()} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
                 {labels.map(l => (
                   <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id, updatedAt: Date.now()} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105 shadow-sm' : 'opacity-40 hover:opacity-100'}`}>{l.name}</button>
