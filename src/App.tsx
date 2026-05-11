@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
 import { 
   StickyNote, Plus, Trash2, X, Settings, 
-  Search, Cloud, CloudOff, LogOut, Lock,
+  Pencil, Tag, Search, Cloud, CloudOff, LogOut, Lock,
   Eye, Edit3, RefreshCw, Archive, Pin, Camera
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
@@ -21,7 +21,8 @@ type ThemeMode = 'dark' | 'light';
 type AccentKey = 'indigo' | 'rose' | 'emerald' | 'amber' | 'cyan' | 'violet';
 type Language = 'de' | 'en' | 'tr';
 
-interface Note { id: number; title: string; content: string; date: string; isDeleted?: boolean; isPinned?: boolean; }
+interface Label { id: string; name: string; color: string; textColor: string; }
+interface Note { id: number; title: string; content: string; labelId: string; date: string; isDeleted?: boolean; isPinned?: boolean; }
 interface AccentProfile { name: string; primary: string; hover: string; text: string; ring: string; lightBg: string; border: string; gradient: string; }
 
 interface ThemeContextType {
@@ -33,14 +34,36 @@ interface ThemeContextType {
 
 interface DataContextType {
   notes: Note[]; setNotes: React.Dispatch<React.SetStateAction<Note[]>>;
+  labels: Label[]; setLabels: React.Dispatch<React.SetStateAction<Label[]>>;
+  activeFilters: string[]; setActiveFilters: React.Dispatch<React.SetStateAction<string[]>>;
+  toggleFilter: (id: string) => void;
   syncStatus: 'synced' | 'syncing' | 'error';
   lastSaved: string | null;
 }
 
+const defaultLabels: Label[] = [
+  { id: '1', name: 'Allgemein', color: 'bg-yellow-200', textColor: 'text-yellow-900' },
+  { id: '2', name: 'Arbeit', color: 'bg-blue-200', textColor: 'text-blue-900' },
+  { id: '3', name: 'Privat', color: 'bg-green-200', textColor: 'text-green-900' },
+  { id: '4', name: 'Wichtig', color: 'bg-red-200', textColor: 'text-red-900' },
+];
+
+const availableColors = [
+  { bg: 'bg-yellow-200', text: 'text-yellow-900', name: 'Gelb' },
+  { bg: 'bg-blue-200', text: 'text-blue-900', name: 'Blau' },
+  { bg: 'bg-green-200', text: 'text-green-900', name: 'Grün' },
+  { bg: 'bg-red-200', text: 'text-red-900', name: 'Rot' },
+  { bg: 'bg-purple-200', text: 'text-purple-900', name: 'Lila' },
+  { bg: 'bg-orange-200', text: 'text-orange-900', name: 'Orange' },
+  { bg: 'bg-gray-200', text: 'text-gray-900', name: 'Grau' },
+  { bg: 'bg-pink-200', text: 'text-pink-900', name: 'Pink' },
+  { bg: 'bg-teal-200', text: 'text-teal-900', name: 'Türkis' },
+];
+
 const dictionary: Record<Language, Record<string, string>> = {
-  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown & Bilder)...", save: "Speichern", settings: "Einstellungen", appearance: "Design", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", emptyTrash: "Leeren", lastSaved: "Gespeichert:" },
-  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown & Images)...", save: "Save", settings: "Settings", appearance: "Design", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", emptyTrash: "Empty", lastSaved: "Saved:" },
-  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown ve Resim)...", save: "Kaydet", settings: "Ayarlar", appearance: "Görünüm", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", emptyTrash: "Boşalt", lastSaved: "Kaydedildi:" }
+  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown & Bilder)...", save: "Speichern", settings: "Einstellungen", appearance: "Design", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", emptyTrash: "Leeren", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manageLabels: "Labels verwalten", deleteLabelError: "Min. 1 Label!", deleteLabelConfirm: "Label wirklich löschen?" },
+  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown & Images)...", save: "Save", settings: "Settings", appearance: "Design", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", emptyTrash: "Empty", lastSaved: "Saved:", unlabeled: "Unlabeled", manageLabels: "Manage Labels", deleteLabelError: "Min 1 label!", deleteLabelConfirm: "Delete label?" },
+  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown ve Resim)...", save: "Kaydet", settings: "Ayarlar", appearance: "Görünüm", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", emptyTrash: "Boşalt", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manageLabels: "Etiketleri Yönet", deleteLabelError: "En az 1!", deleteLabelConfirm: "Sil?" }
 };
 
 const accents: Record<AccentKey, AccentProfile> = {
@@ -82,6 +105,8 @@ const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
 const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [notes, setNotes] = useState<Note[]>([]);
+  const [labels, setLabels] = useState<Label[]>(defaultLabels);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const isInitialLoad = useRef(true);
@@ -93,6 +118,7 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         const { data, error } = await supabase.from('app_data').select('*').eq('id', 1).single();
         if (data && !error) {
           setNotes(data.notes || []);
+          setLabels(data.labels || defaultLabels);
           setSyncStatus('synced');
         } else setSyncStatus('error');
       } catch { setSyncStatus('error'); }
@@ -105,6 +131,7 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const channel = supabase.channel('db-sync').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data' }, (payload: any) => {
       if (payload.new) {
         setNotes(payload.new.notes);
+        setLabels(payload.new.labels);
       }
     }).subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -114,7 +141,7 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     if (isInitialLoad.current) return;
     const save = async () => {
       setSyncStatus('syncing');
-      const { error } = await supabase.from('app_data').update({ notes, updated_at: new Date().toISOString() }).eq('id', 1);
+      const { error } = await supabase.from('app_data').update({ notes, labels, updated_at: new Date().toISOString() }).eq('id', 1);
       if (!error) {
         setSyncStatus('synced');
         setLastSaved(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
@@ -124,9 +151,11 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     };
     const timer = setTimeout(save, 1000);
     return () => clearTimeout(timer);
-  }, [notes]);
+  }, [notes, labels]);
 
-  return <DataContext.Provider value={{ notes, setNotes, syncStatus, lastSaved }}>{children}</DataContext.Provider>;
+  const toggleFilter = (id: string) => setActiveFilters(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
+
+  return <DataContext.Provider value={{ notes, setNotes, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus, lastSaved }}>{children}</DataContext.Provider>;
 };
 
 // ==========================================
@@ -149,23 +178,84 @@ const renderMarkdown = (text: string) => {
 
 const Button: React.FC<any> = ({ children, variant = 'primary', className = '', ...props }) => {
   const { bgCard, textMain, textSec, border, accent } = useTheme();
-  const variants: any = { primary: `${accent.primary} text-white`, secondary: `${bgCard} ${textMain} border ${border}`, danger: "bg-red-500/10 text-red-400", ghost: `${textSec} hover:${textMain}` };
+  const variants: any = { primary: `${accent.primary} text-white shadow-md`, secondary: `${bgCard} ${textMain} border ${border}`, danger: "bg-red-500/10 text-red-500 font-bold", ghost: `${textSec} hover:${textMain}` };
   return <button className={`px-4 py-2 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center gap-2 ${variants[variant]} ${className}`} {...props}>{children}</button>;
 };
 
-const Modal: React.FC<any> = ({ isOpen, onClose, title, children }) => {
+const Input: React.FC<any> = (props) => {
+  const { bgInput, border, textMain, textSec, accent } = useTheme();
+  return <input className={`w-full ${bgInput} border ${border} rounded-xl px-4 py-3 ${textMain} placeholder:${textSec} focus:outline-none focus:ring-2 ${accent.ring} transition-all ${props.className}`} {...props} />;
+};
+
+const Modal: React.FC<any> = ({ isOpen, onClose, title, children, customTheme }) => {
   const { bgCard, border, textMain, textSec, modalOverlay } = useTheme();
   if (!isOpen) return null;
+  const finalBg = customTheme ? customTheme.bg : bgCard;
+  const finalText = customTheme ? customTheme.text : textMain;
   return (
     <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in`}>
-      <div className={`${bgCard} w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border ${border} shadow-2xl overflow-hidden`}>
-        <div className={`flex justify-between p-4 border-b ${border}`}>
-          <h3 className={`font-bold ${textMain}`}>{title}</h3>
-          <button onClick={onClose} className={textSec}><X size={20}/></button>
+      <div className={`${finalBg} w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl border ${customTheme ? 'border-transparent' : border} shadow-2xl overflow-hidden`}>
+        <div className={`flex justify-between p-5 border-b ${customTheme ? 'border-black/10' : border}`}>
+          <h3 className={`font-bold text-lg ${finalText}`}>{title}</h3>
+          <button onClick={onClose} className={`hover:bg-black/10 p-1 rounded-lg transition-colors ${customTheme ? finalText : textSec}`}><X size={20}/></button>
         </div>
-        <div className="p-4 overflow-y-auto">{children}</div>
+        <div className={`p-5 overflow-y-auto ${finalText}`}>{children}</div>
       </div>
     </div>
+  );
+};
+
+const LabelManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  const { bgInput, border, textSec, textMain, bgCard, accent, t } = useTheme();
+  const { labels, setLabels, setNotes } = useData();
+  const [name, setName] = useState('');
+  const [color, setColor] = useState(availableColors[0]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const handleSave = () => { 
+    if (!name.trim()) return; 
+    if (editingId) { 
+      setLabels(prev => prev.map(l => l.id === editingId ? { ...l, name, color: color.bg, textColor: color.text } : l));
+      setEditingId(null); 
+    } else { 
+      setLabels(prev => [...prev, { id: Date.now().toString(), name, color: color.bg, textColor: color.text }]); 
+    } 
+    setName(''); 
+  };
+
+  const handleDelete = (id: string) => { 
+    if (labels.length <= 1) return alert(t('deleteLabelError')); 
+    if (!confirm(t('deleteLabelConfirm'))) return; 
+    setLabels(prev => prev.filter(l => l.id !== id));
+    setNotes(prev => prev.map(n => n.labelId === id ? { ...n, labelId: '' } : n));
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={t('manageLabels')}>
+      <div className="space-y-6">
+        <div className={`p-4 rounded-xl border ${border} ${bgInput}`}>
+          <div className="flex gap-2 mb-3">
+            <Input value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Name..." className="text-sm py-2" />
+            <Button onClick={handleSave} disabled={!name.trim()} className="py-2 px-4">{editingId ? 'Ok' : <Plus size={18} />}</Button>
+            {editingId && <Button onClick={() => { setEditingId(null); setName(''); }} variant="ghost" className="py-2 px-3"><X size={18} /></Button>}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {availableColors.map(c => <button key={c.name} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full ${c.bg} border-2 transition-transform ${color.bg === c.bg ? 'border-gray-500 scale-110 shadow-md' : 'border-transparent hover:scale-105'}`} />)}
+          </div>
+        </div>
+        <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+          {labels.map(l => (
+            <div key={l.id} className={`flex items-center justify-between p-3 rounded-lg border ${border} ${bgCard}`}>
+              <div className="flex items-center gap-3"><div className={`w-4 h-4 rounded-full ${l.color}`}></div><span className={`font-medium ${textMain}`}>{l.name}</span></div>
+              <div className="flex gap-1">
+                <button onClick={() => { setEditingId(l.id); setName(l.name); setColor(availableColors.find(c => c.bg === l.color) || availableColors[0]); }} className={`${textSec} hover:${accent.text} p-2`}><Pencil size={16}/></button>
+                <button onClick={() => handleDelete(l.id)} className={`${textSec} hover:text-red-400 p-2`}><Trash2 size={16}/></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Modal>
   );
 };
 
@@ -174,20 +264,24 @@ const Modal: React.FC<any> = ({ isOpen, onClose, title, children }) => {
 // ==========================================
 const MainLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput, mode, setMode, language, setLanguage } = useTheme();
-  const { notes, setNotes, syncStatus, lastSaved } = useData();
+  const { notes, setNotes, labels, activeFilters, toggleFilter, syncStatus, lastSaved } = useData();
   
   const [currentTab, setCurrentTab] = useState<'notes' | 'trash'>('notes');
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [isPreview, setIsPreview] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
 
   const activeNotes = notes.filter(n => !n.isDeleted).sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
   const trashNotes = notes.filter(n => n.isDeleted);
   const selectedNote = notes.find(n => n.id === selectedNoteId);
 
   const displayNotes = currentTab === 'notes' ? activeNotes : trashNotes;
-  const filteredNotes = displayNotes.filter(n => n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase()));
+  const filteredNotes = displayNotes.filter(n => 
+    (activeFilters.length === 0 || activeFilters.includes(n.labelId || 'unlabeled')) &&
+    (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase()))
+  );
 
   // Shortcuts
   useEffect(() => {
@@ -199,7 +293,7 @@ const MainLayout = () => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
         const id = Date.now();
-        setNotes(prev => [{id, title:'', content:'', date: new Date().toLocaleDateString()}, ...prev]);
+        setNotes(prev => [{id, title:'', content:'', labelId: '', date: new Date().toLocaleDateString()}, ...prev]);
         setSelectedNoteId(id);
         setIsPreview(false);
       }
@@ -214,16 +308,9 @@ const MainLayout = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedNoteId) return;
-
     const fileName = `${Date.now()}-${file.name}`;
     const { data, error } = await supabase.storage.from('note-images').upload(fileName, file);
-
-    if (error) {
-      console.error(error);
-      alert("Upload failed. Make sure bucket 'note-images' is public.");
-      return;
-    }
-
+    if (error) { alert("Upload fehlgeschlagen."); return; }
     if (data) {
       const { data: { publicUrl } } = supabase.storage.from('note-images').getPublicUrl(fileName);
       const imgMarkdown = `\n![image](${publicUrl})\n`;
@@ -233,44 +320,65 @@ const MainLayout = () => {
 
   return (
     <div className={`min-h-screen flex ${bgMain} ${textMain} font-sans overflow-hidden`}>
-      {/* Sidebar */}
+      {/* SIDEBAR */}
       <aside className={`w-20 md:w-64 border-r ${border} flex flex-col ${bgCard}`}>
         <div className="p-6 font-bold text-xl flex items-center gap-2">
           <div className={`w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white shadow-lg`}>LB</div>
           <span className="hidden md:block">LifeBase</span>
         </div>
-        <nav className="flex-1 px-3 space-y-2">
+        
+        <nav className="flex-1 px-3 space-y-2 overflow-y-auto">
           <button onClick={() => {setCurrentTab('notes'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'notes' ? accent.lightBg + ' ' + accent.text : textSec + ' hover:' + bgMain}`}><StickyNote size={20}/> <span className="hidden md:block font-medium">{t('navNotes')}</span></button>
           <button onClick={() => {setCurrentTab('trash'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'trash' ? 'bg-red-500/10 text-red-500' : textSec + ' hover:' + bgMain}`}><Archive size={20}/> <span className="hidden md:block font-medium">{t('navTrash')}</span></button>
+          
+          {currentTab === 'notes' && (
+            <div className="hidden md:block">
+              <div className={`pt-6 pb-2 px-3 text-xs font-bold uppercase tracking-wider ${textSec} flex justify-between items-center`}>
+                Labels <button onClick={() => setIsLabelManagerOpen(true)} className={`hover:${textMain}`}><Settings size={14}/></button>
+              </div>
+              <button onClick={() => toggleFilter('unlabeled')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes('unlabeled') ? 'bg-black/10 dark:bg-white/10' : textSec + ' hover:' + bgMain}`}><Tag size={14}/> {t('unlabeled')}</button>
+              {labels.map(l => (
+                <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor + ' font-bold' : textSec + ' hover:' + bgMain}`}>
+                  <div className={`w-3 h-3 rounded-full ${l.color}`}/> <span className="truncate">{l.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </nav>
+        
         <div className={`p-4 border-t ${border}`}><button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center gap-3 p-3 rounded-xl font-medium transition-all ${textSec} hover:${textMain} hover:${bgMain}`}><Settings size={20}/> <span className="hidden md:block">{t('settings')}</span></button></div>
       </aside>
 
-      {/* List Column */}
+      {/* LIST COLUMN */}
       <div className={`w-full md:w-80 border-r ${border} flex flex-col ${selectedNoteId ? 'hidden md:flex' : 'flex'}`}>
         <div className={`p-4 border-b ${border} flex gap-2`}>
           <div className="relative flex-1"><Search size={16} className={`absolute left-3 top-3 ${textSec}`}/><input value={search} onChange={e => setSearch(e.target.value)} className={`w-full ${bgInput} rounded-xl pl-10 pr-4 py-2 text-sm outline-none ${textMain}`} placeholder="Suche..."/></div>
-          <button onClick={() => { const id = Date.now(); setNotes(prev => [{id, title:'', content:'', date:new Date().toLocaleDateString()}, ...prev]); setSelectedNoteId(id); setIsPreview(false); }} className={`p-2 rounded-xl ${accent.primary} text-white`}><Plus/></button>
+          <button onClick={() => { const id = Date.now(); setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...prev]); setSelectedNoteId(id); setIsPreview(false); }} className={`p-2 rounded-xl ${accent.primary} text-white`}><Plus/></button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {filteredNotes.map(n => (
-            <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md scale-[1.02]' : 'border-transparent hover:border-gray-500/30'} ${bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
-              <div className="flex justify-between items-center"><h4 className="font-bold truncate">{n.title || 'Untitled'}</h4>{n.isPinned && <Pin size={14} className={accent.text} fill="currentColor"/>}</div>
-              <p className={`text-xs ${textSec} truncate mt-1`}>{n.content || 'Kein Inhalt...'}</p>
-            </div>
-          ))}
+          {filteredNotes.map(n => {
+            const l = labels.find(lab => lab.id === n.labelId);
+            return (
+              <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md scale-[1.02]' : 'border-transparent hover:border-gray-500/30'} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
+                {l && <div className="text-[10px] font-bold uppercase tracking-wider mb-1 opacity-80">{l.name}</div>}
+                <div className="flex justify-between items-center"><h4 className="font-bold truncate">{n.title || 'Untitled'}</h4>{n.isPinned && <Pin size={14} fill="currentColor"/>}</div>
+                <p className="text-xs opacity-70 truncate mt-1">{n.content || 'Kein Inhalt...'}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* Editor Column */}
+      {/* EDITOR COLUMN */}
       <main className={`flex-1 flex flex-col relative ${selectedNoteId ? 'flex' : 'hidden md:flex'}`}>
         {selectedNote ? (
-          <div className="flex-1 p-6 md:p-12 max-w-4xl mx-auto w-full flex flex-col gap-6 overflow-y-auto">
-            <div className="flex justify-between items-center">
+          <div className="flex-1 p-6 md:p-12 max-w-4xl mx-auto w-full flex flex-col gap-4 overflow-y-auto">
+            {/* Top Toolbar */}
+            <div className="flex justify-between items-center mb-2">
               <div className="flex gap-2">
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={`p-2 rounded-xl transition-colors ${selectedNote.isPinned ? 'bg-yellow-500/20 text-yellow-500' : 'bg-black/5 hover:bg-black/10 text-gray-500'}`}><Pin size={20}/></button>
-                <button onClick={() => setIsPreview(!isPreview)} className="p-2 rounded-xl bg-black/5 hover:bg-black/10 text-gray-500">{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
-                {!isPreview && currentTab === 'notes' && <label className="p-2 rounded-xl bg-black/5 hover:bg-black/10 text-gray-500 cursor-pointer"><Camera size={20}/><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/></label>}
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={`p-2 rounded-xl transition-colors ${selectedNote.isPinned ? 'bg-yellow-500/20 text-yellow-500' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10'}`}><Pin size={20}/></button>
+                <button onClick={() => setIsPreview(!isPreview)} className="p-2 rounded-xl bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10">{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
+                {!isPreview && currentTab === 'notes' && <label className="p-2 rounded-xl bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 cursor-pointer"><Camera size={20}/><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/></label>}
               </div>
               <div className={`flex items-center gap-4 text-xs font-mono ${textSec}`}>
                 {syncStatus === 'syncing' ? <RefreshCw size={14} className="animate-spin text-indigo-500"/> : (syncStatus === 'error' ? <CloudOff size={14} className="text-red-500"/> : <Cloud size={14}/>)} {t('lastSaved')} {lastSaved}
@@ -282,10 +390,21 @@ const MainLayout = () => {
               </div>
             </div>
 
+            {/* Label Color Selector */}
+            {currentTab === 'notes' && (
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 dark:bg-white/5 opacity-50 hover:opacity-100'}`}>Ohne Label</button>
+                {labels.map(l => (
+                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/30 dark:ring-white/50 scale-105 shadow-md' : 'opacity-60 hover:opacity-100'}`}>{l.name}</button>
+                ))}
+              </div>
+            )}
+
+            {/* Content Area */}
             <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-4xl font-bold bg-transparent outline-none ${currentTab === 'trash' ? textSec : textMain}`} placeholder={t('titlePlaceholder')}/>
             
             {isPreview || currentTab === 'trash' ? (
-              <div className={`flex-1 text-lg leading-relaxed space-y-2 ${textSec}`}>{renderMarkdown(selectedNote.content)}</div>
+              <div className={`flex-1 text-lg leading-relaxed space-y-2 ${textSec} overflow-y-auto`}>{renderMarkdown(selectedNote.content)}</div>
             ) : (
               <textarea value={selectedNote.content} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} className={`flex-1 bg-transparent outline-none text-lg resize-none font-mono ${textSec}`} placeholder={t('contentPlaceholder')}/>
             )}
@@ -305,6 +424,8 @@ const MainLayout = () => {
            <div className="pt-4 border-t border-red-500/20"><Button onClick={() => supabase.auth.signOut()} variant="danger" className="w-full"><LogOut size={18}/> {t('logout')}</Button></div>
         </div>
       </Modal>
+      
+      <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} />
     </div>
   );
 };
