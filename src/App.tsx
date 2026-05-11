@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
 import { 
   StickyNote, Plus, Trash2, X, Settings, 
-  Search, Cloud, CloudOff, LogOut, Lock,
+  Pencil, Tag, Search, Cloud, CloudOff, LogOut, Lock,
   Eye, Edit3, RefreshCw, Archive, Pin, Camera, BookOpen,
-  Pencil, Tag
+  ChevronLeft
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -64,9 +64,9 @@ const availableColors = [
 ];
 
 const dictionary: Record<Language, Record<string, string>> = {
-  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown & Bilder)...", save: "Speichern", settings: "Einstellungen", theme: "Farbe", layout: "Design", minimalist: "Minimalist", classic: "Klassisch", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manual: "Anleitung & Shortcuts" },
-  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown & Images)...", save: "Save", settings: "Settings", theme: "Theme", layout: "Design", minimalist: "Minimalist", classic: "Classic", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", lastSaved: "Saved:", unlabeled: "Unlabeled", manual: "Manual & Shortcuts" },
-  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown ve Resim)...", save: "Kaydet", settings: "Ayarlar", theme: "Tema", layout: "Görünüm", minimalist: "Minimalist", classic: "Klasik", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manual: "Kılavuz ve Kısayollar" }
+  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown)...", save: "Speichern", settings: "Einstellungen", theme: "Farbe", layout: "Design", minimalist: "Minimalist", classic: "Klassisch", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manual: "Anleitung" },
+  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown)...", save: "Save", settings: "Settings", theme: "Theme", layout: "Design", minimalist: "Minimalist", classic: "Classic", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", lastSaved: "Saved:", unlabeled: "Unlabeled", manual: "Manual" },
+  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown)...", save: "Kaydet", settings: "Ayarlar", theme: "Tema", layout: "Görünüm", minimalist: "Minimalist", classic: "Klasik", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manual: "Kılavuz" }
 };
 
 const accents: Record<AccentKey, AccentProfile> = {
@@ -170,10 +170,10 @@ const renderMarkdown = (text: string) => {
       .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="rounded-xl my-4 max-w-full shadow-lg" />')
       .replace(/`([^`]+)`/g, '<code class="bg-black/20 rounded px-1 text-sm font-mono">$1</code>');
 
-    if (line.startsWith('# ')) return <h1 key={i} className="text-3xl font-bold mt-6 mb-2 border-b border-black/5 pb-2">{html.substring(2)}</h1>;
-    if (line.startsWith('## ')) return <h2 key={i} className="text-2xl font-bold mt-5 mb-2">{html.substring(3)}</h2>;
-    if (line.startsWith('- [ ] ')) return <div key={i} className="flex items-center gap-2 my-1"><div className="w-4 h-4 border-2 border-black/20 rounded mt-0.5" /> <span dangerouslySetInnerHTML={{__html: html.substring(6)}} /></div>;
-    if (line.startsWith('- [x] ')) return <div key={i} className="flex items-center gap-2 my-1 opacity-50"><div className="w-4 h-4 bg-indigo-500 rounded flex items-center justify-center mt-0.5"><X size={10} color="white"/></div> <span className="line-through" dangerouslySetInnerHTML={{__html: html.substring(6)}} /></div>;
+    if (line.startsWith('# ')) return <h1 key={i} className="text-2xl md:text-3xl font-bold mt-6 mb-2 border-b border-black/5 pb-2">{html.substring(2)}</h1>;
+    if (line.startsWith('## ')) return <h2 key={i} className="text-xl md:text-2xl font-bold mt-5 mb-2">{html.substring(3)}</h2>;
+    if (line.startsWith('- [ ] ')) return <div key={i} className="flex items-center gap-2 my-1"><div className="w-4 h-4 border-2 border-black/20 rounded mt-0.5 shrink-0" /> <span dangerouslySetInnerHTML={{__html: html.substring(6)}} /></div>;
+    if (line.startsWith('- [x] ')) return <div key={i} className="flex items-center gap-2 my-1 opacity-50"><div className="w-4 h-4 bg-indigo-500 rounded flex items-center justify-center mt-0.5 shrink-0"><X size={10} color="white"/></div> <span className="line-through" dangerouslySetInnerHTML={{__html: html.substring(6)}} /></div>;
     if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc marker:text-gray-400" dangerouslySetInnerHTML={{__html: html.substring(2)}} />;
     return <p key={i} className="min-h-[1.5rem] leading-relaxed" dangerouslySetInnerHTML={{__html: html}} />;
   });
@@ -188,7 +188,6 @@ const handleSmartEditor = (e: React.KeyboardEvent<HTMLTextAreaElement>, content:
   const lineStart = before.lastIndexOf('\n') + 1;
   const currentLine = before.substring(lineStart);
 
-  // 1. ENTER: Auto-Lists & Checkboxes
   if (e.key === 'Enter') {
     const listMatch = currentLine.match(/^(\s*)(-|\*|1\.|- \[ \]| - \[x\])\s/);
     if (listMatch) {
@@ -205,7 +204,6 @@ const handleSmartEditor = (e: React.KeyboardEvent<HTMLTextAreaElement>, content:
     }
   }
 
-  // 2. TAB: Indent
   if (e.key === 'Tab') {
     e.preventDefault();
     const tab = "  ";
@@ -221,7 +219,6 @@ const handleSmartEditor = (e: React.KeyboardEvent<HTMLTextAreaElement>, content:
     }
   }
 
-  // 3. AUTO-PAIRING & WRAPPING
   const pairs: Record<string, string> = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
   if (pairs[e.key]) {
     e.preventDefault();
@@ -236,7 +233,6 @@ const handleSmartEditor = (e: React.KeyboardEvent<HTMLTextAreaElement>, content:
     }
   }
 
-  // 4. SMART BACKSPACE
   if (e.key === 'Backspace' && start === end) {
     const charBefore = before.slice(-1);
     const charAfter = after.charAt(0);
@@ -257,19 +253,17 @@ const Button: React.FC<any> = ({ children, variant = 'primary', className = '', 
   return <button className={`px-4 py-2 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center gap-2 ${variants[variant]} ${className}`} {...props}>{children}</button>;
 };
 
-const Modal: React.FC<any> = ({ isOpen, onClose, title, children, customTheme }) => {
+const Modal: React.FC<any> = ({ isOpen, onClose, title, children }) => {
   const { bgCard, border, textMain, textSec, modalOverlay } = useTheme();
   if (!isOpen) return null;
-  const finalBg = customTheme ? customTheme.bg : bgCard;
-  const finalText = customTheme ? customTheme.text : textMain;
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${modalOverlay} backdrop-blur-sm animate-in fade-in`}>
-      <div className={`${finalBg} w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl border ${customTheme ? 'border-transparent' : border} shadow-2xl overflow-hidden`}>
-        <div className={`flex justify-between p-5 border-b ${customTheme ? 'border-black/10' : border}`}>
-          <h3 className={`font-bold text-lg ${finalText}`}>{title}</h3>
-          <button onClick={onClose} className={`hover:bg-black/10 p-1 rounded-lg transition-colors ${customTheme ? finalText : textSec}`}><X size={20}/></button>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 md:p-6 ${modalOverlay} backdrop-blur-sm animate-in fade-in`}>
+      <div className={`${bgCard} w-full max-w-md max-h-[85vh] flex flex-col rounded-3xl border ${border} shadow-2xl overflow-hidden`}>
+        <div className={`flex justify-between p-5 border-b ${border}`}>
+          <h3 className={`font-bold text-lg ${textMain}`}>{title}</h3>
+          <button onClick={onClose} className={`hover:bg-black/10 p-1 rounded-lg transition-colors ${textSec}`}><X size={20}/></button>
         </div>
-        <div className={`p-5 overflow-y-auto ${finalText}`}>{children}</div>
+        <div className={`p-5 overflow-y-auto ${textMain}`}>{children}</div>
       </div>
     </div>
   );
@@ -355,9 +349,14 @@ const MainLayout = () => {
 
   const isClassic = designMode === 'classic';
   const activeLabel = labels.find(l => l.id === selectedNote?.labelId);
-  const editorBg = isClassic ? (activeLabel ? activeLabel.color : bgCard) : 'bg-transparent';
-  const editorText = isClassic ? (activeLabel ? activeLabel.textColor : textMain) : textMain;
-  const editorSecText = isClassic ? (activeLabel ? 'opacity-70 text-black/70' : textSec) : textSec;
+  
+  // Editor Styling
+  const editorWrapperClass = isClassic ? 'bg-black/5 dark:bg-white/5 md:p-8' : '';
+  const editorInnerClass = isClassic 
+    ? `${activeLabel ? activeLabel.color : bgCard} ${activeLabel ? activeLabel.textColor : textMain} p-4 sm:p-6 md:p-8 md:rounded-3xl shadow-xl border-t sm:border ${border}` 
+    : 'p-4 sm:p-6 md:p-12';
+  const editorSecTextClass = isClassic && activeLabel ? 'opacity-70 text-black/70' : textSec;
+  const iconBtnClass = `p-2 rounded-xl transition-colors ${isClassic && activeLabel ? 'bg-black/10 hover:bg-black/20 text-black/70' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 dark:hover:bg-white/10'}`;
 
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
@@ -391,86 +390,129 @@ const MainLayout = () => {
     }
   };
 
+  const createNewNote = () => {
+    const id = Date.now(); 
+    setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...prev]); 
+    setSelectedNoteId(id); 
+    setIsPreview(false);
+  };
+
   return (
-    <div className={`min-h-screen flex ${bgMain} ${textMain} font-sans overflow-hidden`}>
-      {/* SIDEBAR */}
-      <aside className={`w-20 md:w-64 border-r ${border} flex flex-col ${bgCard}`}>
+    // 100dvh statt h-screen verhindert auf dem Handy (Safari/Chrome), dass die Bottom-Nav verdeckt wird
+    <div className={`h-[100dvh] w-full flex ${bgMain} ${textMain} font-sans overflow-hidden`}>
+      
+      {/* 1. DESKTOP SIDEBAR (Versteckt auf Mobile) */}
+      <aside className={`hidden md:flex w-64 border-r ${border} flex-col ${bgCard}`}>
         <div className="p-6 font-bold text-xl flex items-center gap-2">
           <div className={`w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white shadow-lg`}>LB</div>
-          <span className="hidden md:block">LifeBase</span>
+          <span>LifeBase</span>
         </div>
-        <nav className="flex-1 px-3 space-y-2 overflow-y-auto">
-          <button onClick={() => {setCurrentTab('notes'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'notes' ? accent.lightBg + ' ' + accent.text : textSec + ' hover:' + bgMain}`}><StickyNote size={20}/> <span className="hidden md:block font-medium">{t('navNotes')}</span></button>
-          <button onClick={() => {setCurrentTab('trash'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'trash' ? 'bg-red-500/10 text-red-500' : textSec + ' hover:' + bgMain}`}><Archive size={20}/> <span className="hidden md:block font-medium">{t('navTrash')}</span></button>
+        <nav className="flex-1 px-3 space-y-2 overflow-y-auto scrollbar-hide">
+          <button onClick={() => {setCurrentTab('notes'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'notes' ? accent.lightBg + ' ' + accent.text : textSec + ' hover:' + bgMain}`}><StickyNote size={20}/> <span className="font-medium">{t('navNotes')}</span></button>
+          <button onClick={() => {setCurrentTab('trash'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'trash' ? 'bg-red-500/10 text-red-500' : textSec + ' hover:' + bgMain}`}><Archive size={20}/> <span className="font-medium">{t('navTrash')}</span></button>
           {currentTab === 'notes' && (
-            <div className="hidden md:block pt-4 border-t border-black/5 mt-4">
+            <div className="pt-4 border-t border-black/5 dark:border-white/5 mt-4">
               <div className="flex justify-between items-center px-3 mb-2"><span className="text-[10px] font-bold uppercase opacity-40">Labels</span><button onClick={() => setIsLabelManagerOpen(true)}><Settings size={12}/></button></div>
               <button onClick={() => toggleFilter('unlabeled')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes('unlabeled') ? 'bg-black/10 dark:bg-white/10' : textSec + ' hover:' + bgMain}`}><Tag size={14}/> {t('unlabeled')}</button>
               {labels.map(l => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor + ' font-bold shadow-sm' : textSec + ' hover:' + bgMain}`}><div className={`w-2 h-2 rounded-full ${l.color}`}/> <span className="truncate">{l.name}</span></button>)}
             </div>
           )}
         </nav>
-        <div className={`p-4 border-t ${border}`}><button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center gap-3 p-3 rounded-xl font-medium transition-all ${textSec} hover:${textMain} hover:${bgMain}`}><Settings size={20}/> <span className="hidden md:block">{t('settings')}</span></button></div>
       </aside>
 
-      {/* LIST COLUMN */}
-      <div className={`w-full md:w-80 border-r ${border} flex flex-col ${selectedNoteId ? 'hidden md:flex' : 'flex'}`}>
-        <div className={`p-4 border-b ${border} flex gap-2`}>
-          <div className="relative flex-1"><Search size={16} className={`absolute left-3 top-3 opacity-30`}/><input value={search} onChange={e => setSearch(e.target.value)} className={`w-full ${bgInput} rounded-xl pl-10 pr-4 py-2 text-sm outline-none`} placeholder={t('search')}/></div>
-          <button onClick={() => { const id = Date.now(); setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...prev]); setSelectedNoteId(id); setIsPreview(false); }} className={`p-2 rounded-xl ${accent.primary} text-white shadow-lg`}><Plus/></button>
+      {/* 2. LIST COLUMN (Versteckt auf Mobile, wenn Notiz offen ist) */}
+      <div className={`${selectedNoteId ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 border-r ${border} bg-transparent h-full`}>
+        {/* Search Header */}
+        <div className={`p-4 border-b ${border} flex gap-3 items-center`}>
+          <div className={`md:hidden w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white font-bold shrink-0 shadow-md`}>LB</div>
+          <div className="relative flex-1">
+            <Search size={16} className={`absolute left-3 top-3.5 ${textSec}`}/>
+            <input value={search} onChange={e => setSearch(e.target.value)} className={`w-full ${bgInput} rounded-xl pl-10 pr-4 py-3 text-sm outline-none shadow-inner`} placeholder={t('search')}/>
+          </div>
+          <button onClick={createNewNote} className={`hidden md:flex p-3 rounded-xl ${accent.primary} text-white shadow-lg`}><Plus size={20}/></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
+        
+        {/* Mobile-Only Label Filter (horizontal scrollbar) */}
+        {currentTab === 'notes' && (
+          <div className={`md:hidden flex gap-2 overflow-x-auto p-3 border-b ${border} scrollbar-hide shrink-0`}>
+            <button onClick={() => setIsLabelManagerOpen(true)} className={`px-3 py-1.5 rounded-full text-xs font-bold bg-black/5 dark:bg-white/5 ${textSec}`}><Settings size={14}/></button>
+            <button onClick={() => toggleFilter('unlabeled')} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${activeFilters.includes('unlabeled') ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 dark:bg-white/5 opacity-50'}`}>{t('unlabeled')}</button>
+            {labels.map(l => (
+               <button key={l.id} onClick={() => toggleFilter(l.id)} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all ${l.color} ${l.textColor} ${activeFilters.includes(l.id) ? 'ring-2 ring-black/20 scale-105' : 'opacity-60'}`}>{l.name}</button>
+            ))}
+          </div>
+        )}
+
+        {/* Notes List */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 md:pb-4">
           {filteredNotes.map(n => {
             const l = labels.find(lab => lab.id === n.labelId);
             return (
-              <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md scale-[1.02]' : 'border-transparent hover:border-gray-500/20'} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
-                {l && <div className="text-[10px] font-bold uppercase tracking-wider mb-1 opacity-80">{l.name}</div>}
-                <div className="flex justify-between items-center"><h4 className="font-bold truncate">{n.title || 'Untitled'}</h4>{n.isPinned && <Pin size={12} fill="currentColor" className="opacity-50"/>}</div>
-                <p className="text-xs opacity-70 truncate mt-1">{n.content || '...'}</p>
+              <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md scale-[1.02]' : `border-transparent hover:border-black/10 dark:hover:border-white/10`} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
+                {l && <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-80">{l.name}</div>}
+                <div className="flex justify-between items-start gap-2">
+                   <h4 className="font-bold text-base leading-tight line-clamp-1">{n.title || 'Untitled'}</h4>
+                   {n.isPinned && <Pin size={14} fill="currentColor" className="opacity-50 shrink-0 mt-0.5"/>}
+                </div>
+                <p className="text-xs opacity-70 mt-2 line-clamp-2 leading-relaxed">{n.content || '...'}</p>
               </div>
             );
           })}
         </div>
+
+        {/* Mobile Floating Action Button */}
+        {!selectedNoteId && currentTab === 'notes' && (
+           <button onClick={createNewNote} className={`md:hidden absolute bottom-20 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-2xl flex items-center justify-center z-50 transition-transform active:scale-95`}><Plus size={28}/></button>
+        )}
       </div>
 
-      {/* EDITOR COLUMN */}
-      <main className={`flex-1 flex flex-col relative ${selectedNoteId ? 'flex' : 'hidden md:flex'} ${isClassic ? 'p-4 md:p-8 bg-black/5 dark:bg-white/5' : ''}`}>
+      {/* 3. EDITOR COLUMN (Versteckt auf Mobile, wenn KEINE Notiz offen ist) */}
+      <main className={`${selectedNoteId ? 'flex' : 'hidden md:flex'} flex-1 flex-col relative h-full ${editorWrapperClass}`}>
         {selectedNote ? (
-          <div className={`flex-1 max-w-4xl mx-auto w-full flex flex-col gap-4 overflow-y-auto ${isClassic ? `${editorBg} ${editorText} p-8 rounded-3xl shadow-2xl border ${border}` : 'p-6 md:p-12'}`}>
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex gap-2">
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={`p-2 rounded-xl transition-colors ${selectedNote.isPinned ? 'bg-yellow-500/20 text-yellow-500' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10'}`}><Pin size={20}/></button>
-                <button onClick={() => setIsPreview(!isPreview)} className="p-2 rounded-xl bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10">{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
-                {!isPreview && currentTab === 'notes' && <label className="p-2 rounded-xl bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 cursor-pointer"><Camera size={20}/><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/></label>}
+          <div className={`flex-1 max-w-4xl mx-auto w-full flex flex-col gap-4 overflow-y-auto ${editorInnerClass}`}>
+            
+            {/* Top Toolbar (Responsive) */}
+            <div className="flex justify-between items-center mb-2 md:mb-4">
+              <div className="flex gap-1.5 md:gap-2 items-center">
+                {/* Mobile Back Button */}
+                <button onClick={() => setSelectedNoteId(null)} className="md:hidden p-2 -ml-2 text-inherit opacity-70 hover:opacity-100"><ChevronLeft size={28}/></button>
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={`p-2 rounded-xl transition-colors ${selectedNote.isPinned ? 'bg-yellow-500 text-white shadow-md' : iconBtnClass}`}><Pin size={20}/></button>
+                <button onClick={() => setIsPreview(!isPreview)} className={iconBtnClass}>{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
+                {!isPreview && currentTab === 'notes' && <label className={`${iconBtnClass} cursor-pointer`}><Camera size={20}/><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/></label>}
               </div>
-              <div className={`flex items-center gap-4 text-xs font-mono ${editorSecText}`}>
-                {syncStatus === 'syncing' ? <RefreshCw size={14} className="animate-spin text-indigo-500"/> : (syncStatus === 'error' ? <CloudOff size={14} className="text-red-500"/> : <Cloud size={14}/>)} {t('lastSaved')} {lastSaved}
+              <div className={`flex items-center gap-3 md:gap-4 text-[10px] md:text-xs font-mono ${editorSecTextClass} uppercase tracking-widest`}>
+                <div className="hidden sm:flex items-center gap-1.5">
+                   {syncStatus === 'syncing' ? <RefreshCw size={12} className="animate-spin"/> : (syncStatus === 'error' ? <CloudOff size={12} className="text-red-500"/> : <Cloud size={12} className="text-green-500"/>)} 
+                   {lastSaved}
+                </div>
                 {currentTab === 'trash' ? (
-                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: false} : n)); setSelectedNoteId(null); }} className="px-3 py-2 bg-green-500/20 text-green-500 rounded-xl font-bold flex gap-2"><RefreshCw size={16}/> {t('restore')}</button>
+                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: false} : n)); setSelectedNoteId(null); }} className="bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold shadow-md">Restore</button>
                 ) : (
-                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true} : n)); setSelectedNoteId(null); }} className="text-red-400 hover:bg-red-500/10 p-2 rounded-xl"><Trash2 size={20}/></button>
+                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true} : n)); setSelectedNoteId(null); }} className={`p-2 rounded-xl text-red-500 ${isClassic && activeLabel ? 'hover:bg-black/10' : 'hover:bg-red-500/10'}`}><Trash2 size={20}/></button>
                 )}
               </div>
             </div>
 
+            {/* Label Selector inside Editor (Desktop only) */}
             {currentTab === 'notes' && (
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              <div className="hidden md:flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                 <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
                 {labels.map(l => (
-                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105' : 'opacity-40'}`}>{l.name}</button>
+                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105 shadow-sm' : 'opacity-40 hover:opacity-100'}`}>{l.name}</button>
                 ))}
               </div>
             )}
 
-            <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-4xl font-bold bg-transparent outline-none placeholder:opacity-20 ${currentTab === 'trash' ? 'opacity-50' : editorText}`} placeholder={t('titlePlaceholder')}/>
+            {/* Input Area */}
+            <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-3xl md:text-5xl font-black bg-transparent outline-none placeholder:opacity-30 ${currentTab === 'trash' ? 'opacity-50' : (isClassic && activeLabel ? activeLabel.textColor : textMain)}`} placeholder={t('titlePlaceholder')}/>
             
             {isPreview || currentTab === 'trash' ? (
-              <div className={`flex-1 text-lg leading-relaxed space-y-2 overflow-y-auto ${editorSecText}`}>{renderMarkdown(selectedNote.content)}</div>
+              <div className={`flex-1 text-base md:text-lg leading-relaxed space-y-2 overflow-y-auto pb-6 ${editorSecTextClass}`}>{renderMarkdown(selectedNote.content)}</div>
             ) : (
               <textarea value={selectedNote.content} 
                 onKeyDown={(e) => handleSmartEditor(e, selectedNote.content, (val) => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: val} : n)))}
                 onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} 
-                className={`flex-1 bg-transparent outline-none text-lg resize-none font-mono placeholder:opacity-20 ${editorSecText}`} placeholder={t('contentPlaceholder')}/>
+                className={`flex-1 bg-transparent outline-none text-base md:text-lg resize-none font-mono placeholder:opacity-30 pb-6 ${editorSecTextClass}`} placeholder={t('contentPlaceholder')}/>
             )}
           </div>
         ) : (
@@ -480,9 +522,18 @@ const MainLayout = () => {
         )}
       </main>
 
+      {/* 4. MOBILE BOTTOM NAV (Versteckt, wenn Notiz im Fullscreen offen ist) */}
+      {!selectedNoteId && (
+        <nav className={`md:hidden fixed bottom-0 left-0 right-0 flex justify-around items-center p-3 border-t ${border} ${bgMain} z-40 pb-safe`}>
+           <button onClick={() => setCurrentTab('notes')} className={`flex flex-col items-center gap-1 p-2 ${currentTab === 'notes' ? accent.text : textSec}`}><StickyNote size={24}/><span className="text-[10px] font-bold">{t('navNotes')}</span></button>
+           <button onClick={() => setCurrentTab('trash')} className={`flex flex-col items-center gap-1 p-2 ${currentTab === 'trash' ? 'text-red-500' : textSec}`}><Archive size={24}/><span className="text-[10px] font-bold">{t('navTrash')}</span></button>
+           <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1 p-2 ${textSec}`}><Settings size={24}/><span className="text-[10px] font-bold">{t('settings')}</span></button>
+        </nav>
+      )}
+
       {/* MODALS */}
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title={t('settings')}>
-        <div className="space-y-6">
+        <div className="space-y-8">
            <button onClick={() => {setIsSettingsOpen(false); setIsManualOpen(true);}} className={`w-full flex items-center justify-between p-4 rounded-2xl bg-indigo-500/10 text-indigo-500 font-bold border border-indigo-500/20`}><div className="flex items-center gap-3"><BookOpen size={20}/> {t('manual')}</div><Plus size={16}/></button>
            <div><h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('theme')}</h4><div className="flex gap-2"><Button onClick={() => setMode('light')} variant={mode === 'light' ? 'primary' : 'secondary'} className="flex-1">Light</Button><Button onClick={() => setMode('dark')} variant={mode === 'dark' ? 'primary' : 'secondary'} className="flex-1">Dark</Button></div></div>
            <div><h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('layout')}</h4><div className="flex gap-2"><Button onClick={() => setDesignMode('minimalist')} variant={designMode === 'minimalist' ? 'primary' : 'secondary'} className="flex-1">Minimal</Button><Button onClick={() => setDesignMode('classic')} variant={designMode === 'classic' ? 'primary' : 'secondary'} className="flex-1">Classic</Button></div></div>
@@ -504,10 +555,9 @@ const MainLayout = () => {
           <section>
             <h4 className="font-bold text-indigo-500 mb-2">Smart Editor (Obsidian Style)</h4>
             <ul className="space-y-2 opacity-80">
-              <li><strong>Listen:</strong> Tippe <code>- </code> oder <code>1. </code> und drücke Enter für die nächste Zeile.</li>
+              <li><strong>Listen:</strong> Tippe <code>- </code> oder <code>1. </code> und drücke Enter.</li>
               <li><strong>Checkboxen:</strong> Nutze <code>- [ ] </code> für To-Dos.</li>
               <li><strong>Einrücken:</strong> Nutze <kbd className="bg-black/10 px-1 rounded">Tab</kbd> und <kbd className="bg-black/10 px-1 rounded">Shift</kbd>+<kbd className="bg-black/10 px-1 rounded">Tab</kbd>.</li>
-              <li><strong>Wrapping:</strong> Markiere Text und tippe <code>*</code> oder <code>(</code> um ihn zu umschließen.</li>
               <li><strong>Auto-Pairing:</strong> Klammern und " werden automatisch geschlossen.</li>
             </ul>
           </section>
