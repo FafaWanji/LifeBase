@@ -18,6 +18,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 2. TYPES
 // ==========================================
 type ThemeMode = 'dark' | 'light';
+type DesignMode = 'minimalist' | 'classic';
 type AccentKey = 'indigo' | 'rose' | 'emerald' | 'amber' | 'cyan' | 'violet';
 type Language = 'de' | 'en' | 'tr';
 
@@ -27,9 +28,12 @@ interface AccentProfile { name: string; primary: string; hover: string; text: st
 
 interface ThemeContextType {
   bgMain: string; bgCard: string; bgInput: string; textMain: string; textSec: string; border: string; modalOverlay: string;
-  accent: AccentProfile; mode: ThemeMode; setMode: (m: ThemeMode) => void;
+  accent: AccentProfile; 
+  mode: ThemeMode; setMode: (m: ThemeMode) => void;
+  designMode: DesignMode; setDesignMode: (d: DesignMode) => void;
   accentKey: AccentKey; setAccentKey: (k: AccentKey) => void;
-  language: Language; setLanguage: (l: Language) => void; t: (k: string) => string;
+  language: Language; setLanguage: (l: Language) => void; 
+  t: (k: string) => string;
 }
 
 interface DataContextType {
@@ -61,9 +65,9 @@ const availableColors = [
 ];
 
 const dictionary: Record<Language, Record<string, string>> = {
-  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown & Bilder)...", save: "Speichern", settings: "Einstellungen", appearance: "Design", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", emptyTrash: "Leeren", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manageLabels: "Labels verwalten", deleteLabelError: "Min. 1 Label!", deleteLabelConfirm: "Label wirklich löschen?" },
-  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown & Images)...", save: "Save", settings: "Settings", appearance: "Design", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", emptyTrash: "Empty", lastSaved: "Saved:", unlabeled: "Unlabeled", manageLabels: "Manage Labels", deleteLabelError: "Min 1 label!", deleteLabelConfirm: "Delete label?" },
-  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown ve Resim)...", save: "Kaydet", settings: "Ayarlar", appearance: "Görünüm", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", emptyTrash: "Boşalt", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manageLabels: "Etiketleri Yönet", deleteLabelError: "En az 1!", deleteLabelConfirm: "Sil?" }
+  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown & Bilder)...", save: "Speichern", settings: "Einstellungen", theme: "Farbschema", layout: "Design", minimalist: "Minimalistisch", classic: "Klassisch", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", emptyTrash: "Leeren", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manageLabels: "Labels verwalten", deleteLabelError: "Min. 1 Label!", deleteLabelConfirm: "Label wirklich löschen?", search: "Suchen..." },
+  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown & Images)...", save: "Save", settings: "Settings", theme: "Theme", layout: "Design", minimalist: "Minimalist", classic: "Classic", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", emptyTrash: "Empty", lastSaved: "Saved:", unlabeled: "Unlabeled", manageLabels: "Manage Labels", deleteLabelError: "Min 1 label!", deleteLabelConfirm: "Delete label?", search: "Search..." },
+  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown ve Resim)...", save: "Kaydet", settings: "Ayarlar", theme: "Tema", layout: "Görünüm", minimalist: "Minimalist", classic: "Klasik", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", emptyTrash: "Boşalt", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manageLabels: "Etiketleri Yönet", deleteLabelError: "En az 1!", deleteLabelConfirm: "Sil?", search: "Ara..." }
 };
 
 const accents: Record<AccentKey, AccentProfile> = {
@@ -91,16 +95,18 @@ const useData = () => { const c = useContext(DataContext); if (!c) throw new Err
 
 const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<ThemeMode>(() => (localStorage.getItem('lb_theme_mode') as ThemeMode) || 'dark');
+  const [designMode, setDesignMode] = useState<DesignMode>(() => (localStorage.getItem('lb_design_mode') as DesignMode) || 'minimalist');
   const [accentKey, setAccentKey] = useState<AccentKey>(() => (localStorage.getItem('lb_theme_accent') as AccentKey) || 'indigo');
   const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('lb_language') as Language) || 'en');
   
   useEffect(() => {
     localStorage.setItem('lb_theme_mode', mode);
+    localStorage.setItem('lb_design_mode', designMode);
     localStorage.setItem('lb_theme_accent', accentKey);
     localStorage.setItem('lb_language', language);
-  }, [mode, accentKey, language]);
+  }, [mode, designMode, accentKey, language]);
 
-  return <ThemeContext.Provider value={{ ...themes[mode], accent: accents[accentKey], mode, setMode, accentKey, setAccentKey, language, setLanguage, t: (k) => dictionary[language][k] || k }}>{children}</ThemeContext.Provider>;
+  return <ThemeContext.Provider value={{ ...themes[mode], accent: accents[accentKey], mode, setMode, designMode, setDesignMode, accentKey, setAccentKey, language, setLanguage, t: (k) => dictionary[language][k] || k }}>{children}</ThemeContext.Provider>;
 };
 
 const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -263,7 +269,7 @@ const LabelManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOp
 // 5. MAIN LAYOUT
 // ==========================================
 const MainLayout = () => {
-  const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput, mode, setMode, language, setLanguage } = useTheme();
+  const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput, mode, setMode, designMode, setDesignMode, language, setLanguage } = useTheme();
   const { notes, setNotes, labels, activeFilters, toggleFilter, syncStatus, lastSaved } = useData();
   
   const [currentTab, setCurrentTab] = useState<'notes' | 'trash'>('notes');
@@ -282,6 +288,14 @@ const MainLayout = () => {
     (activeFilters.length === 0 || activeFilters.includes(n.labelId || 'unlabeled')) &&
     (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase()))
   );
+
+  // Styling logic for Classic/Minimalist
+  const isClassic = designMode === 'classic';
+  const activeLabel = labels.find(l => l.id === selectedNote?.labelId);
+  const editorBg = isClassic ? (activeLabel ? activeLabel.color : bgCard) : 'bg-transparent';
+  const editorText = isClassic ? (activeLabel ? activeLabel.textColor : textMain) : textMain;
+  const editorSecText = isClassic ? (activeLabel ? 'opacity-70 text-black/70' : textSec) : textSec;
+  const iconBtnClass = `p-2 rounded-xl transition-colors ${isClassic && activeLabel ? 'bg-black/10 hover:bg-black/20 text-black/70' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 dark:hover:bg-white/10'}`;
 
   // Shortcuts
   useEffect(() => {
@@ -352,7 +366,7 @@ const MainLayout = () => {
       {/* LIST COLUMN */}
       <div className={`w-full md:w-80 border-r ${border} flex flex-col ${selectedNoteId ? 'hidden md:flex' : 'flex'}`}>
         <div className={`p-4 border-b ${border} flex gap-2`}>
-          <div className="relative flex-1"><Search size={16} className={`absolute left-3 top-3 ${textSec}`}/><input value={search} onChange={e => setSearch(e.target.value)} className={`w-full ${bgInput} rounded-xl pl-10 pr-4 py-2 text-sm outline-none ${textMain}`} placeholder="Suche..."/></div>
+          <div className="relative flex-1"><Search size={16} className={`absolute left-3 top-3 ${textSec}`}/><input value={search} onChange={e => setSearch(e.target.value)} className={`w-full ${bgInput} rounded-xl pl-10 pr-4 py-2 text-sm outline-none ${textMain}`} placeholder={t('search')}/></div>
           <button onClick={() => { const id = Date.now(); setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...prev]); setSelectedNoteId(id); setIsPreview(false); }} className={`p-2 rounded-xl ${accent.primary} text-white`}><Plus/></button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
@@ -370,22 +384,23 @@ const MainLayout = () => {
       </div>
 
       {/* EDITOR COLUMN */}
-      <main className={`flex-1 flex flex-col relative ${selectedNoteId ? 'flex' : 'hidden md:flex'}`}>
+      <main className={`flex-1 flex flex-col relative ${selectedNoteId ? 'flex' : 'hidden md:flex'} ${isClassic ? 'p-4 md:p-8 bg-black/5 dark:bg-white/5' : ''}`}>
         {selectedNote ? (
-          <div className="flex-1 p-6 md:p-12 max-w-4xl mx-auto w-full flex flex-col gap-4 overflow-y-auto">
+          <div className={`flex-1 max-w-4xl mx-auto w-full flex flex-col gap-4 overflow-y-auto ${isClassic ? `${editorBg} ${editorText} p-8 rounded-3xl shadow-xl border ${border}` : 'p-6 md:p-12'}`}>
+            
             {/* Top Toolbar */}
             <div className="flex justify-between items-center mb-2">
               <div className="flex gap-2">
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={`p-2 rounded-xl transition-colors ${selectedNote.isPinned ? 'bg-yellow-500/20 text-yellow-500' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10'}`}><Pin size={20}/></button>
-                <button onClick={() => setIsPreview(!isPreview)} className="p-2 rounded-xl bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10">{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
-                {!isPreview && currentTab === 'notes' && <label className="p-2 rounded-xl bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 cursor-pointer"><Camera size={20}/><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/></label>}
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={selectedNote.isPinned ? `p-2 rounded-xl transition-colors bg-yellow-500 text-white` : iconBtnClass}><Pin size={20}/></button>
+                <button onClick={() => setIsPreview(!isPreview)} className={iconBtnClass}>{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
+                {!isPreview && currentTab === 'notes' && <label className={`${iconBtnClass} cursor-pointer`}><Camera size={20}/><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/></label>}
               </div>
-              <div className={`flex items-center gap-4 text-xs font-mono ${textSec}`}>
+              <div className={`flex items-center gap-4 text-xs font-mono ${editorSecText}`}>
                 {syncStatus === 'syncing' ? <RefreshCw size={14} className="animate-spin text-indigo-500"/> : (syncStatus === 'error' ? <CloudOff size={14} className="text-red-500"/> : <Cloud size={14}/>)} {t('lastSaved')} {lastSaved}
                 {currentTab === 'trash' ? (
                   <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: false} : n)); setSelectedNoteId(null); }} className="px-3 py-2 bg-green-500/20 text-green-500 rounded-xl font-bold flex gap-2"><RefreshCw size={16}/> {t('restore')}</button>
                 ) : (
-                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true} : n)); setSelectedNoteId(null); }} className="text-red-400 hover:bg-red-500/10 p-2 rounded-xl"><Trash2 size={20}/></button>
+                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true} : n)); setSelectedNoteId(null); }} className={iconBtnClass}><Trash2 size={20}/></button>
                 )}
               </div>
             </div>
@@ -393,7 +408,7 @@ const MainLayout = () => {
             {/* Label Color Selector */}
             {currentTab === 'notes' && (
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 dark:bg-white/5 opacity-50 hover:opacity-100'}`}>Ohne Label</button>
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 dark:bg-white/5 opacity-50 hover:opacity-100'}`}>{t('unlabeled')}</button>
                 {labels.map(l => (
                   <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/30 dark:ring-white/50 scale-105 shadow-md' : 'opacity-60 hover:opacity-100'}`}>{l.name}</button>
                 ))}
@@ -401,12 +416,12 @@ const MainLayout = () => {
             )}
 
             {/* Content Area */}
-            <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-4xl font-bold bg-transparent outline-none ${currentTab === 'trash' ? textSec : textMain}`} placeholder={t('titlePlaceholder')}/>
+            <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-4xl font-bold bg-transparent outline-none placeholder:opacity-40 ${currentTab === 'trash' ? 'opacity-50' : editorText}`} placeholder={t('titlePlaceholder')}/>
             
             {isPreview || currentTab === 'trash' ? (
-              <div className={`flex-1 text-lg leading-relaxed space-y-2 ${textSec} overflow-y-auto`}>{renderMarkdown(selectedNote.content)}</div>
+              <div className={`flex-1 text-lg leading-relaxed space-y-2 overflow-y-auto ${editorSecText}`}>{renderMarkdown(selectedNote.content)}</div>
             ) : (
-              <textarea value={selectedNote.content} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} className={`flex-1 bg-transparent outline-none text-lg resize-none font-mono ${textSec}`} placeholder={t('contentPlaceholder')}/>
+              <textarea value={selectedNote.content} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} className={`flex-1 bg-transparent outline-none text-lg resize-none font-mono placeholder:opacity-40 ${editorSecText}`} placeholder={t('contentPlaceholder')}/>
             )}
           </div>
         ) : (
@@ -419,12 +434,35 @@ const MainLayout = () => {
 
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title={t('settings')}>
         <div className="space-y-8">
-           <div><h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${textSec}`}>{t('appearance')}</h4><div className="flex gap-2"><Button onClick={() => setMode('light')} variant={mode === 'light' ? 'primary' : 'secondary'} className="flex-1">Light</Button><Button onClick={() => setMode('dark')} variant={mode === 'dark' ? 'primary' : 'secondary'} className="flex-1">Dark</Button></div></div>
+           <div><h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${textSec}`}>{t('theme')}</h4><div className="flex gap-2"><Button onClick={() => setMode('light')} variant={mode === 'light' ? 'primary' : 'secondary'} className="flex-1">{t('light')}</Button><Button onClick={() => setMode('dark')} variant={mode === 'dark' ? 'primary' : 'secondary'} className="flex-1">{t('dark')}</Button></div></div>
+           <div><h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${textSec}`}>{t('layout')}</h4><div className="flex gap-2"><Button onClick={() => setDesignMode('minimalist')} variant={designMode === 'minimalist' ? 'primary' : 'secondary'} className="flex-1">{t('minimalist')}</Button><Button onClick={() => setDesignMode('classic')} variant={designMode === 'classic' ? 'primary' : 'secondary'} className="flex-1">{t('classic')}</Button></div></div>
            <div><h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <Button key={l} onClick={() => setLanguage(l as any)} variant={language === l ? 'primary' : 'secondary'} className="flex-1 uppercase">{l}</Button>)}</div></div>
            <div className="pt-4 border-t border-red-500/20"><Button onClick={() => supabase.auth.signOut()} variant="danger" className="w-full"><LogOut size={18}/> {t('logout')}</Button></div>
         </div>
       </Modal>
       
+      {/* Mobile Modal for editing */}
+      <div className="md:hidden">
+        <Modal 
+          isOpen={!!selectedNoteId && isClassic} 
+          onClose={() => setSelectedNoteId(null)} 
+          title={selectedNote?.title || t('newNote')} 
+          customTheme={isClassic && activeLabel ? { bg: activeLabel.color, text: activeLabel.textColor } : undefined}
+        >
+          {selectedNote && (
+            <div className="space-y-4">
+              <input value={selectedNote.title || ''} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`w-full bg-black/5 dark:bg-white/5 rounded-lg p-3 font-bold outline-none placeholder:opacity-50 ${isClassic && activeLabel ? activeLabel.textColor : ''}`} placeholder={t('titlePlaceholder')} />
+              <textarea value={selectedNote.content || ''} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} className={`w-full bg-black/5 dark:bg-white/5 rounded-lg p-3 h-64 resize-none outline-none font-mono placeholder:opacity-50 ${isClassic && activeLabel ? activeLabel.textColor : ''}`} placeholder={t('contentPlaceholder')} />
+              <div className="flex gap-2 flex-wrap scrollbar-hide">
+                 <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className="px-3 py-1.5 rounded-full text-xs bg-black/10 dark:bg-white/10 font-bold">{t('unlabeled')}</button>
+                 {labels.map(l => <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-full text-xs font-bold ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/50 scale-105' : 'opacity-70'}`}>{l.name}</button>)}
+              </div>
+              <Button onClick={() => setSelectedNoteId(null)} className="w-full mt-2 bg-black/10 text-black shadow-none">{t('save')}</Button>
+            </div>
+          )}
+        </Modal>
+      </div>
+
       <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} />
     </div>
   );
