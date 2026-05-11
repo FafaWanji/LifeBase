@@ -3,7 +3,7 @@ import {
   StickyNote, Plus, Trash2, X, Settings, 
   Pencil, Tag, Search, Cloud, CloudOff, LogOut, Lock,
   Eye, Edit3, RefreshCw, Archive, Pin, Camera, BookOpen,
-  ChevronLeft
+  ChevronLeft, Copy, Check
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -22,9 +22,10 @@ type ThemeMode = 'dark' | 'light';
 type DesignMode = 'minimalist' | 'classic';
 type AccentKey = 'indigo' | 'rose' | 'emerald' | 'amber' | 'cyan' | 'violet';
 type Language = 'de' | 'en' | 'tr';
+type SortMode = 'updated' | 'created' | 'az';
 
 interface Label { id: string; name: string; color: string; textColor: string; }
-interface Note { id: number; title: string; content: string; labelId: string; date: string; isDeleted?: boolean; isPinned?: boolean; }
+interface Note { id: number; title: string; content: string; labelId: string; date: string; isDeleted?: boolean; isPinned?: boolean; updatedAt?: number; }
 interface AccentProfile { name: string; primary: string; hover: string; text: string; ring: string; lightBg: string; border: string; gradient: string; }
 
 interface ThemeContextType {
@@ -64,9 +65,9 @@ const availableColors = [
 ];
 
 const dictionary: Record<Language, Record<string, string>> = {
-  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown)...", save: "Speichern", settings: "Einstellungen", theme: "Farbe", layout: "Design", minimalist: "Minimalist", classic: "Klassisch", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manual: "Anleitung" },
-  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown)...", save: "Save", settings: "Settings", theme: "Theme", layout: "Design", minimalist: "Minimalist", classic: "Classic", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", lastSaved: "Saved:", unlabeled: "Unlabeled", manual: "Manual" },
-  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown)...", save: "Kaydet", settings: "Ayarlar", theme: "Tema", layout: "Görünüm", minimalist: "Minimalist", classic: "Klasik", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manual: "Kılavuz" }
+  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown)...", save: "Speichern", settings: "Einstellungen", theme: "Farbe", layout: "Design", minimalist: "Minimalist", classic: "Klassisch", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manual: "Anleitung", sortUpdated: "Zuletzt bearbeitet", sortCreated: "Erstellt", sortAZ: "A-Z", words: "Wörter", chars: "Zeichen", min: "Min" },
+  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown)...", save: "Save", settings: "Settings", theme: "Theme", layout: "Design", minimalist: "Minimalist", classic: "Classic", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", lastSaved: "Saved:", unlabeled: "Unlabeled", manual: "Manual", sortUpdated: "Last updated", sortCreated: "Created", sortAZ: "A-Z", words: "Words", chars: "Chars", min: "Min" },
+  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown)...", save: "Kaydet", settings: "Ayarlar", theme: "Tema", layout: "Görünüm", minimalist: "Minimalist", classic: "Klasik", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manual: "Kılavuz", sortUpdated: "Son düzenleme", sortCreated: "Oluşturuldu", sortAZ: "A-Z", words: "Kelime", chars: "Karakter", min: "Dk" }
 };
 
 const accents: Record<AccentKey, AccentProfile> = {
@@ -332,20 +333,30 @@ const MainLayout = () => {
   const [currentTab, setCurrentTab] = useState<'notes' | 'trash'>('notes');
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>('updated');
   const [isPreview, setIsPreview] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
 
-  const activeNotes = notes.filter(n => !n.isDeleted).sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+  const activeNotes = notes.filter(n => !n.isDeleted);
   const trashNotes = notes.filter(n => n.isDeleted);
   const selectedNote = notes.find(n => n.id === selectedNoteId);
 
   const displayNotes = currentTab === 'notes' ? activeNotes : trashNotes;
-  const filteredNotes = displayNotes.filter(n => 
+  
+  const sortedNotes = [...displayNotes].sort((a, b) => {
+    if (a.isPinned !== b.isPinned) return (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0);
+    if (sortMode === 'az') return a.title.localeCompare(b.title);
+    if (sortMode === 'created') return b.id - a.id;
+    return (b.updatedAt || b.id) - (a.updatedAt || a.id);
+  });
+
+  const filteredNotes = sortedNotes.filter(n => 
     (activeFilters.length === 0 || activeFilters.includes(n.labelId || 'unlabeled')) &&
     (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase()))
   );
@@ -359,6 +370,10 @@ const MainLayout = () => {
     : 'p-4 sm:p-6 md:p-12';
   const editorSecTextClass = isClassic && activeLabel ? 'opacity-70 text-black/70' : textSec;
   const iconBtnClass = `p-2 rounded-xl transition-colors ${isClassic && activeLabel ? 'bg-black/10 hover:bg-black/20 text-black/70' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 dark:hover:bg-white/10'}`;
+
+  const wordCount = selectedNote?.content.trim().split(/\s+/).filter(w => w.length > 0).length || 0;
+  const charCount = selectedNote?.content.length || 0;
+  const readTime = Math.ceil(wordCount / 200);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -406,7 +421,7 @@ const MainLayout = () => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
         e.preventDefault();
         const id = Date.now();
-        setNotes(prev => [{id, title:'', content:'', labelId: '', date: new Date().toLocaleDateString()}, ...prev]);
+        setNotes(prev => [{id, title:'', content:'', labelId: '', date: new Date().toLocaleDateString(), updatedAt: id}, ...prev]);
         setSelectedNoteId(id);
         setIsPreview(false);
         setTimeout(() => titleRef.current?.focus(), 0);
@@ -426,16 +441,23 @@ const MainLayout = () => {
     if (data) {
       const { data: { publicUrl } } = supabase.storage.from('note-images').getPublicUrl(fileName);
       const imgMarkdown = `\n![image](${publicUrl})\n`;
-      setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: n.content + imgMarkdown} : n));
+      setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: n.content + imgMarkdown, updatedAt: Date.now()} : n));
     }
   };
 
   const createNewNote = () => {
     const id = Date.now(); 
-    setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...prev]); 
+    setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString(), updatedAt: id}, ...prev]); 
     setSelectedNoteId(id); 
     setIsPreview(false);
     setTimeout(() => titleRef.current?.focus(), 0);
+  };
+
+  const handleCopy = () => {
+    if (!selectedNote) return;
+    navigator.clipboard.writeText(selectedNote.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -461,13 +483,25 @@ const MainLayout = () => {
 
       {/* 2. LIST COLUMN */}
       <div className={`${selectedNoteId ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 border-r ${border} bg-transparent h-full`}>
-        <div className={`p-4 border-b ${border} flex gap-3 items-center`}>
-          <div className={`md:hidden w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white font-bold shrink-0 shadow-md`}>LB</div>
-          <div className="relative flex-1">
-            <Search size={16} className={`absolute left-3 top-3.5 ${textSec}`}/>
-            <input value={search} onChange={e => setSearch(e.target.value)} className={`w-full ${bgInput} rounded-xl pl-10 pr-4 py-3 text-sm outline-none shadow-inner`} placeholder={t('search')}/>
+        <div className={`p-4 border-b ${border} flex flex-col gap-3`}>
+          <div className="flex gap-3 items-center">
+            <div className={`md:hidden w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white font-bold shrink-0 shadow-md`}>LB</div>
+            <div className="relative flex-1">
+              <Search size={16} className={`absolute left-3 top-3.5 ${textSec}`}/>
+              <input value={search} onChange={e => setSearch(e.target.value)} className={`w-full ${bgInput} rounded-xl pl-10 pr-4 py-3 text-sm outline-none shadow-inner`} placeholder={t('search')}/>
+            </div>
+            <button onClick={createNewNote} className={`hidden md:flex p-3 rounded-xl ${accent.primary} text-white shadow-lg`}><Plus size={20}/></button>
           </div>
-          <button onClick={createNewNote} className={`hidden md:flex p-3 rounded-xl ${accent.primary} text-white shadow-lg`}><Plus size={20}/></button>
+          {currentTab === 'notes' && (
+            <div className="flex justify-between items-center px-1">
+              <span className={`text-[10px] font-bold uppercase ${textSec} opacity-50`}>Sort</span>
+              <select value={sortMode} onChange={e => setSortMode(e.target.value as SortMode)} className={`bg-transparent outline-none text-xs font-bold ${textMain} cursor-pointer`}>
+                <option value="updated">{t('sortUpdated')}</option>
+                <option value="created">{t('sortCreated')}</option>
+                <option value="az">{t('sortAZ')}</option>
+              </select>
+            </div>
+          )}
         </div>
         
         {currentTab === 'notes' && (
@@ -490,7 +524,7 @@ const MainLayout = () => {
                    <h4 className="font-bold text-base leading-tight line-clamp-1">{n.title || 'Untitled'}</h4>
                    {currentTab !== 'trash' && (
                      <button 
-                       onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === n.id ? {...x, isPinned: !x.isPinned} : x)); }}
+                       onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === n.id ? {...x, isPinned: !x.isPinned, updatedAt: Date.now()} : x)); }}
                        className={`p-1.5 -mr-1.5 -mt-1.5 rounded-lg shrink-0 transition-all ${n.isPinned ? 'text-yellow-500 opacity-100' : 'opacity-30 md:opacity-0 md:group-hover:opacity-50 hover:!opacity-100 text-inherit'}`}
                      ><Pin size={16} fill={n.isPinned ? "currentColor" : "none"} /></button>
                    )}
@@ -513,9 +547,10 @@ const MainLayout = () => {
             <div className="flex justify-between items-center mb-2 md:mb-4 shrink-0">
               <div className="flex gap-1.5 md:gap-2 items-center">
                 <button onClick={() => setSelectedNoteId(null)} className="md:hidden p-2 -ml-2 text-inherit opacity-70 hover:opacity-100"><ChevronLeft size={28}/></button>
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={`p-2 rounded-xl transition-colors ${selectedNote.isPinned ? 'bg-yellow-500 text-white shadow-md' : iconBtnClass}`}><Pin size={20}/></button>
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned, updatedAt: Date.now()} : n))} className={`p-2 rounded-xl transition-colors ${selectedNote.isPinned ? 'bg-yellow-500 text-white shadow-md' : iconBtnClass}`}><Pin size={20}/></button>
                 <button onClick={() => setIsPreview(!isPreview)} className={iconBtnClass}>{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
                 {!isPreview && currentTab === 'notes' && <label className={`${iconBtnClass} cursor-pointer`}><Camera size={20}/><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/></label>}
+                <button onClick={handleCopy} className={iconBtnClass}>{copied ? <Check size={20} className="text-green-500" /> : <Copy size={20}/>}</button>
               </div>
               <div className={`flex items-center gap-3 md:gap-4 text-[10px] md:text-xs font-mono ${editorSecTextClass} uppercase tracking-widest`}>
                 <div className="hidden sm:flex items-center gap-1.5">
@@ -523,18 +558,18 @@ const MainLayout = () => {
                    {lastSaved}
                 </div>
                 {currentTab === 'trash' ? (
-                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: false} : n)); setSelectedNoteId(null); }} className="bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold shadow-md">Restore</button>
+                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: false, updatedAt: Date.now()} : n)); setSelectedNoteId(null); }} className="bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold shadow-md">Restore</button>
                 ) : (
-                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true} : n)); setSelectedNoteId(null); }} className={`p-2 rounded-xl text-red-500 ${isClassic && activeLabel ? 'hover:bg-black/10' : 'hover:bg-red-500/10'}`}><Trash2 size={20}/></button>
+                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true, updatedAt: Date.now()} : n)); setSelectedNoteId(null); }} className={`p-2 rounded-xl text-red-500 ${isClassic && activeLabel ? 'hover:bg-black/10' : 'hover:bg-red-500/10'}`}><Trash2 size={20}/></button>
                 )}
               </div>
             </div>
 
             {currentTab === 'notes' && (
               <div className="hidden md:flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0">
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: '', updatedAt: Date.now()} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
                 {labels.map(l => (
-                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105 shadow-sm' : 'opacity-40 hover:opacity-100'}`}>{l.name}</button>
+                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id, updatedAt: Date.now()} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105 shadow-sm' : 'opacity-40 hover:opacity-100'}`}>{l.name}</button>
                 ))}
               </div>
             )}
@@ -543,29 +578,28 @@ const MainLayout = () => {
               ref={titleRef}
               disabled={currentTab === 'trash'} 
               value={selectedNote.title} 
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  contentRef.current?.focus();
-                }
-              }}
-              onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} 
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); contentRef.current?.focus(); } }}
+              onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value, updatedAt: Date.now()} : n))} 
               className={`text-3xl md:text-5xl font-black bg-transparent outline-none placeholder:opacity-30 shrink-0 ${currentTab === 'trash' ? 'opacity-50' : (isClassic && activeLabel ? activeLabel.textColor : textMain)}`} 
               placeholder={t('titlePlaceholder')}
             />
             
             {isPreview || currentTab === 'trash' ? (
-              <div className={`flex-1 text-base md:text-lg leading-relaxed space-y-2 overflow-y-auto pb-6 ${editorSecTextClass}`}>{renderMarkdown(selectedNote.content)}</div>
+              <div className={`flex-1 text-base md:text-lg leading-relaxed space-y-2 overflow-y-auto pb-2 ${editorSecTextClass}`}>{renderMarkdown(selectedNote.content)}</div>
             ) : (
               <textarea 
                 ref={contentRef}
                 value={selectedNote.content} 
-                onKeyDown={(e) => handleSmartEditor(e, selectedNote.content, (val) => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: val} : n)))}
-                onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} 
-                className={`flex-1 bg-transparent outline-none text-base md:text-lg resize-none font-mono placeholder:opacity-30 pb-6 ${editorSecTextClass}`} 
+                onKeyDown={(e) => handleSmartEditor(e, selectedNote.content, (val) => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: val, updatedAt: Date.now()} : n)))}
+                onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value, updatedAt: Date.now()} : n))} 
+                className={`flex-1 bg-transparent outline-none text-base md:text-lg resize-none font-mono placeholder:opacity-30 pb-2 ${editorSecTextClass}`} 
                 placeholder={t('contentPlaceholder')}
               />
             )}
+            
+            <div className={`shrink-0 text-[10px] uppercase font-bold tracking-widest ${editorSecTextClass} opacity-50 pt-2 border-t ${isClassic && activeLabel ? 'border-black/10' : border}`}>
+              {wordCount} {t('words')} • {charCount} {t('chars')} • {readTime} {t('min')}
+            </div>
           </div>
         ) : (
           <div className={`flex-1 flex flex-col items-center justify-center opacity-10 ${textMain}`}>
