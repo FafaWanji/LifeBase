@@ -221,7 +221,7 @@ const LabelManager: React.FC<{ isOpen: boolean; onClose: () => void; labels: Lab
 };
 
 const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { mode, setMode, bgInput, border, language, setLanguage, t, textSec } = useTheme();
+  const { mode, setMode, border, language, setLanguage, t, textSec } = useTheme();
   const { notes, tierlists, labels, setNotes, setTierlists, setLabels } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
