@@ -318,19 +318,14 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchMove = (e: React.TouchEvent) => {
     const diff = e.touches[0].clientX - touchStartX.current;
-    if (currentTab === 'notes' && diff > 0) setSwipeX(diff);
-    if (currentTab === 'trash' && diff < 0) setSwipeX(diff);
+    if (diff < 0) setSwipeX(diff);
   };
   
   const handleTouchEnd = () => {
-    if (currentTab === 'notes' && swipeX > 100) {
-      setSwipeX(window.innerWidth);
-      setIsAnimatingOut(true);
-      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)), 250);
-    } else if (currentTab === 'trash' && swipeX < -100) {
+    if (swipeX < -100) {
       setSwipeX(-window.innerWidth);
       setIsAnimatingOut(true);
-      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: false} : x)), 250);
+      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: currentTab === 'notes'} : x)), 250);
     } else {
       setSwipeX(0);
     }
@@ -342,7 +337,7 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
     setHoverRatio((e.clientX - rect.left) / rect.width);
   };
 
-  let overlayBg = 'transparent';
+  let overlayBg = '';
   if (hoverRatio !== null && currentTab !== 'trash') {
     const isLeft = hoverRatio < 0.5;
     const intensity = isLeft ? (0.5 - hoverRatio) * 2 : (hoverRatio - 0.5) * 2;
@@ -353,7 +348,7 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
 
   return (
     <div className={`relative mb-3 rounded-2xl overflow-hidden shrink-0 transition-all duration-300 ${isAnimatingOut ? 'h-0 opacity-0 mb-0 scale-95' : 'opacity-100'} ${isSelected ? `ring-2 ${accent.ring} shadow-md` : `ring-2 ring-transparent border-2 border-transparent hover:border-black/10 dark:hover:border-white/10`}`}>
-      <div className={`absolute inset-0 flex items-center px-6 text-white ${currentTab === 'notes' ? 'bg-red-500 justify-start' : 'bg-green-500 justify-end'}`}>
+      <div className={`absolute inset-0 flex items-center px-6 text-white justify-end ${currentTab === 'notes' ? 'bg-red-500' : 'bg-green-500'}`}>
         {currentTab === 'notes' ? <Trash2 size={24} /> : <RefreshCw size={24} />}
       </div>
       
@@ -361,13 +356,15 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
         onClick={() => onClick(note.id)}
         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         onMouseMove={handleMouseMove} onMouseLeave={() => setHoverRatio(null)}
-        style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? 'transform 0.2s ease-out' : 'none', background: overlayBg }}
-        className={`group relative p-4 cursor-pointer box-border h-full ${label ? label.color + ' ' + label.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-70 grayscale' : ''}`}
+        style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? 'transform 0.2s ease-out' : 'none' }}
+        className={`group relative p-4 cursor-pointer box-border h-full ${label ? label.color + ' ' + label.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-70 grayscale' : ''} bg-opacity-100`}
       >
-        <div className="absolute inset-y-0 left-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex">
+        {overlayBg && <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: overlayBg }} />}
+        
+        <div className="absolute inset-y-0 left-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex z-10">
           {currentTab === 'notes' && <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isPinned: !x.isPinned, updatedAt: Date.now()} : x)); }} className={`p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 ${note.isPinned ? 'text-yellow-600' : 'hover:text-yellow-600'}`}><Pin size={16} fill={note.isPinned ? "currentColor" : "none"} /></button>}
         </div>
-        <div className="absolute inset-y-0 right-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex">
+        <div className="absolute inset-y-0 right-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex z-10">
           {currentTab === 'notes' ? (
             <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)); }} className="p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 hover:text-red-600"><Trash2 size={16} /></button>
           ) : (
@@ -487,7 +484,7 @@ const MainLayout = () => {
     setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString(), updatedAt: id}, ...prev]); 
     setSelectedNoteId(id); 
     setIsPreview(false);
-    setTimeout(() => { if (titleRef.current) titleRef.current.focus(); }, 100);
+    setTimeout(() => titleRef.current?.focus(), 50);
   };
 
   const handleCopy = () => {
@@ -597,7 +594,14 @@ const MainLayout = () => {
               ref={titleRef}
               disabled={currentTab === 'trash'} 
               value={selectedNote.title} 
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); contentRef.current?.focus(); } }}
+              onKeyDown={(e) => { 
+                if (e.key === 'Enter') { 
+                  e.preventDefault(); 
+                  contentRef.current?.focus(); 
+                  // Fixes jump on mobile
+                  setTimeout(() => contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+                } 
+              }}
               onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value, updatedAt: Date.now()} : n))} 
               className={`text-3xl md:text-5xl font-black bg-transparent outline-none placeholder:opacity-30 shrink-0 ${currentTab === 'trash' ? 'opacity-50' : (isClassic && activeLabel ? activeLabel.textColor : textMain)}`} 
               placeholder={t('titlePlaceholder')}
