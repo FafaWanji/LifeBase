@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, createContext, useContext, type ReactNode } from 'react';
 import { 
   StickyNote, Plus, Trash2, X, Settings, 
-  Pencil, Tag, Search, Cloud, CloudOff, LogOut, Lock,
-  Eye, Edit3, RefreshCw, Archive, Pin, Camera
+  Search, Cloud, CloudOff, LogOut, Lock,
+  Eye, Edit3, RefreshCw, Archive, Pin, Camera, BookOpen,
+  Pencil, Tag
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -28,12 +29,10 @@ interface AccentProfile { name: string; primary: string; hover: string; text: st
 
 interface ThemeContextType {
   bgMain: string; bgCard: string; bgInput: string; textMain: string; textSec: string; border: string; modalOverlay: string;
-  accent: AccentProfile; 
-  mode: ThemeMode; setMode: (m: ThemeMode) => void;
+  accent: AccentProfile; mode: ThemeMode; setMode: (m: ThemeMode) => void;
   designMode: DesignMode; setDesignMode: (d: DesignMode) => void;
   accentKey: AccentKey; setAccentKey: (k: AccentKey) => void;
-  language: Language; setLanguage: (l: Language) => void; 
-  t: (k: string) => string;
+  language: Language; setLanguage: (l: Language) => void; t: (k: string) => string;
 }
 
 interface DataContextType {
@@ -65,9 +64,9 @@ const availableColors = [
 ];
 
 const dictionary: Record<Language, Record<string, string>> = {
-  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown & Bilder)...", save: "Speichern", settings: "Einstellungen", theme: "Farbschema", layout: "Design", minimalist: "Minimalistisch", classic: "Klassisch", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", emptyTrash: "Leeren", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manageLabels: "Labels verwalten", deleteLabelError: "Min. 1 Label!", deleteLabelConfirm: "Label wirklich löschen?", search: "Suchen..." },
-  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown & Images)...", save: "Save", settings: "Settings", theme: "Theme", layout: "Design", minimalist: "Minimalist", classic: "Classic", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", emptyTrash: "Empty", lastSaved: "Saved:", unlabeled: "Unlabeled", manageLabels: "Manage Labels", deleteLabelError: "Min 1 label!", deleteLabelConfirm: "Delete label?", search: "Search..." },
-  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown ve Resim)...", save: "Kaydet", settings: "Ayarlar", theme: "Tema", layout: "Görünüm", minimalist: "Minimalist", classic: "Klasik", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", emptyTrash: "Boşalt", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manageLabels: "Etiketleri Yönet", deleteLabelError: "En az 1!", deleteLabelConfirm: "Sil?", search: "Ara..." }
+  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown & Bilder)...", save: "Speichern", settings: "Einstellungen", theme: "Farbe", layout: "Design", minimalist: "Minimalist", classic: "Klassisch", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manual: "Anleitung & Shortcuts" },
+  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown & Images)...", save: "Save", settings: "Settings", theme: "Theme", layout: "Design", minimalist: "Minimalist", classic: "Classic", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", lastSaved: "Saved:", unlabeled: "Unlabeled", manual: "Manual & Shortcuts" },
+  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown ve Resim)...", save: "Kaydet", settings: "Ayarlar", theme: "Tema", layout: "Görünüm", minimalist: "Minimalist", classic: "Klasik", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manual: "Kılavuz ve Kısayollar" }
 };
 
 const accents: Record<AccentKey, AccentProfile> = {
@@ -98,14 +97,12 @@ const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [designMode, setDesignMode] = useState<DesignMode>(() => (localStorage.getItem('lb_design_mode') as DesignMode) || 'minimalist');
   const [accentKey, setAccentKey] = useState<AccentKey>(() => (localStorage.getItem('lb_theme_accent') as AccentKey) || 'indigo');
   const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('lb_language') as Language) || 'en');
-  
   useEffect(() => {
     localStorage.setItem('lb_theme_mode', mode);
     localStorage.setItem('lb_design_mode', designMode);
     localStorage.setItem('lb_theme_accent', accentKey);
     localStorage.setItem('lb_language', language);
   }, [mode, designMode, accentKey, language]);
-
   return <ThemeContext.Provider value={{ ...themes[mode], accent: accents[accentKey], mode, setMode, designMode, setDesignMode, accentKey, setAccentKey, language, setLanguage, t: (k) => dictionary[language][k] || k }}>{children}</ThemeContext.Provider>;
 };
 
@@ -151,21 +148,18 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       if (!error) {
         setSyncStatus('synced');
         setLastSaved(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-      } else {
-        setSyncStatus('error');
-      }
+      } else setSyncStatus('error');
     };
     const timer = setTimeout(save, 1000);
     return () => clearTimeout(timer);
   }, [notes, labels]);
 
   const toggleFilter = (id: string) => setActiveFilters(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
-
   return <DataContext.Provider value={{ notes, setNotes, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus, lastSaved }}>{children}</DataContext.Provider>;
 };
 
 // ==========================================
-// 4. UI COMPONENTS
+// 4. UI HELPERS & EDITOR LOGIC
 // ==========================================
 const renderMarkdown = (text: string) => {
   if (!text) return null;
@@ -173,24 +167,94 @@ const renderMarkdown = (text: string) => {
     let html = line
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="rounded-lg my-2 max-w-full h-auto shadow-lg" />')
-      .replace(/`([^`]+)`/g, '<code class="bg-black/20 rounded px-1 text-sm">$1</code>');
+      .replace(/!\[(.*?)\]\((.*?)\)/g, '<img src="$2" alt="$1" class="rounded-xl my-4 max-w-full shadow-lg" />')
+      .replace(/`([^`]+)`/g, '<code class="bg-black/20 rounded px-1 text-sm font-mono">$1</code>');
 
-    if (line.startsWith('# ')) return <h1 key={i} className="text-3xl font-bold mt-4 mb-2">{html.substring(2)}</h1>;
-    if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc" dangerouslySetInnerHTML={{__html: html.substring(2)}} />;
-    return <p key={i} className="min-h-[1.2rem]" dangerouslySetInnerHTML={{__html: html}} />;
+    if (line.startsWith('# ')) return <h1 key={i} className="text-3xl font-bold mt-6 mb-2 border-b border-black/5 pb-2">{html.substring(2)}</h1>;
+    if (line.startsWith('## ')) return <h2 key={i} className="text-2xl font-bold mt-5 mb-2">{html.substring(3)}</h2>;
+    if (line.startsWith('- [ ] ')) return <div key={i} className="flex items-center gap-2 my-1"><div className="w-4 h-4 border-2 border-black/20 rounded mt-0.5" /> <span dangerouslySetInnerHTML={{__html: html.substring(6)}} /></div>;
+    if (line.startsWith('- [x] ')) return <div key={i} className="flex items-center gap-2 my-1 opacity-50"><div className="w-4 h-4 bg-indigo-500 rounded flex items-center justify-center mt-0.5"><X size={10} color="white"/></div> <span className="line-through" dangerouslySetInnerHTML={{__html: html.substring(6)}} /></div>;
+    if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc marker:text-gray-400" dangerouslySetInnerHTML={{__html: html.substring(2)}} />;
+    return <p key={i} className="min-h-[1.5rem] leading-relaxed" dangerouslySetInnerHTML={{__html: html}} />;
   });
 };
 
+const handleSmartEditor = (e: React.KeyboardEvent<HTMLTextAreaElement>, content: string, setContent: (val: string) => void) => {
+  const textarea = e.currentTarget;
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const before = content.substring(0, start);
+  const after = content.substring(end);
+  const lineStart = before.lastIndexOf('\n') + 1;
+  const currentLine = before.substring(lineStart);
+
+  // 1. ENTER: Auto-Lists & Checkboxes
+  if (e.key === 'Enter') {
+    const listMatch = currentLine.match(/^(\s*)(-|\*|1\.|- \[ \]| - \[x\])\s/);
+    if (listMatch) {
+      e.preventDefault();
+      if (currentLine.trim() === listMatch[2]) {
+        const newContent = before.substring(0, lineStart) + '\n' + after;
+        setContent(newContent);
+        setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = lineStart + 1; }, 0);
+      } else {
+        const nextPrefix = `\n${listMatch[1]}${listMatch[2]} `;
+        setContent(before + nextPrefix + after);
+        setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = start + nextPrefix.length; }, 0);
+      }
+    }
+  }
+
+  // 2. TAB: Indent
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const tab = "  ";
+    if (e.shiftKey) {
+      if (currentLine.startsWith(tab)) {
+        const newContent = before.substring(0, lineStart) + currentLine.substring(tab.length) + after;
+        setContent(newContent);
+        setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = start - tab.length; }, 0);
+      }
+    } else {
+      setContent(before + tab + after);
+      setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = start + tab.length; }, 0);
+    }
+  }
+
+  // 3. AUTO-PAIRING & WRAPPING
+  const pairs: Record<string, string> = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
+  if (pairs[e.key]) {
+    e.preventDefault();
+    const closing = pairs[e.key];
+    if (start !== end) {
+      const selected = content.substring(start, end);
+      setContent(before + e.key + selected + closing + after);
+      setTimeout(() => { textarea.selectionStart = start + 1; textarea.selectionEnd = end + 1; }, 0);
+    } else {
+      setContent(before + e.key + closing + after);
+      setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = start + 1; }, 0);
+    }
+  }
+
+  // 4. SMART BACKSPACE
+  if (e.key === 'Backspace' && start === end) {
+    const charBefore = before.slice(-1);
+    const charAfter = after.charAt(0);
+    if (pairs[charBefore] === charAfter) {
+      e.preventDefault();
+      setContent(before.slice(0, -1) + after.slice(1));
+      setTimeout(() => { textarea.selectionStart = textarea.selectionEnd = start - 1; }, 0);
+    }
+  }
+};
+
+// ==========================================
+// 5. MAIN COMPONENTS
+// ==========================================
 const Button: React.FC<any> = ({ children, variant = 'primary', className = '', ...props }) => {
   const { bgCard, textMain, textSec, border, accent } = useTheme();
   const variants: any = { primary: `${accent.primary} text-white shadow-md`, secondary: `${bgCard} ${textMain} border ${border}`, danger: "bg-red-500/10 text-red-500 font-bold", ghost: `${textSec} hover:${textMain}` };
   return <button className={`px-4 py-2 rounded-xl font-semibold transition-all active:scale-95 flex items-center justify-center gap-2 ${variants[variant]} ${className}`} {...props}>{children}</button>;
-};
-
-const Input: React.FC<any> = (props) => {
-  const { bgInput, border, textMain, textSec, accent } = useTheme();
-  return <input className={`w-full ${bgInput} border ${border} rounded-xl px-4 py-3 ${textMain} placeholder:${textSec} focus:outline-none focus:ring-2 ${accent.ring} transition-all ${props.className}`} {...props} />;
 };
 
 const Modal: React.FC<any> = ({ isOpen, onClose, title, children, customTheme }) => {
@@ -241,9 +305,8 @@ const LabelManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOp
       <div className="space-y-6">
         <div className={`p-4 rounded-xl border ${border} ${bgInput}`}>
           <div className="flex gap-2 mb-3">
-            <Input value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Name..." className="text-sm py-2" />
+            <input value={name} onChange={(e: any) => setName(e.target.value)} placeholder="Name..." className={`w-full bg-transparent border-b ${border} outline-none py-1`} />
             <Button onClick={handleSave} disabled={!name.trim()} className="py-2 px-4">{editingId ? 'Ok' : <Plus size={18} />}</Button>
-            {editingId && <Button onClick={() => { setEditingId(null); setName(''); }} variant="ghost" className="py-2 px-3"><X size={18} /></Button>}
           </div>
           <div className="flex flex-wrap gap-2">
             {availableColors.map(c => <button key={c.name} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full ${c.bg} border-2 transition-transform ${color.bg === c.bg ? 'border-gray-500 scale-110 shadow-md' : 'border-transparent hover:scale-105'}`} />)}
@@ -266,11 +329,11 @@ const LabelManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOp
 };
 
 // ==========================================
-// 5. MAIN LAYOUT
+// 6. MAIN LAYOUT
 // ==========================================
 const MainLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput, mode, setMode, designMode, setDesignMode, language, setLanguage } = useTheme();
-  const { notes, setNotes, labels, activeFilters, toggleFilter, syncStatus, lastSaved } = useData();
+  const { notes, setNotes, labels, syncStatus, lastSaved, activeFilters, toggleFilter } = useData();
   
   const [currentTab, setCurrentTab] = useState<'notes' | 'trash'>('notes');
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
@@ -278,6 +341,7 @@ const MainLayout = () => {
   const [isPreview, setIsPreview] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
+  const [isManualOpen, setIsManualOpen] = useState(false);
 
   const activeNotes = notes.filter(n => !n.isDeleted).sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
   const trashNotes = notes.filter(n => n.isDeleted);
@@ -289,18 +353,15 @@ const MainLayout = () => {
     (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Styling logic for Classic/Minimalist
   const isClassic = designMode === 'classic';
   const activeLabel = labels.find(l => l.id === selectedNote?.labelId);
   const editorBg = isClassic ? (activeLabel ? activeLabel.color : bgCard) : 'bg-transparent';
   const editorText = isClassic ? (activeLabel ? activeLabel.textColor : textMain) : textMain;
   const editorSecText = isClassic ? (activeLabel ? 'opacity-70 text-black/70' : textSec) : textSec;
-  const iconBtnClass = `p-2 rounded-xl transition-colors ${isClassic && activeLabel ? 'bg-black/10 hover:bg-black/20 text-black/70' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 dark:hover:bg-white/10'}`;
 
-  // Shortcuts
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Delete' && selectedNoteId && currentTab === 'notes') {
+    const handleGlobalKeys = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' && selectedNoteId && currentTab === 'notes' && document.activeElement?.tagName !== 'TEXTAREA' && document.activeElement?.tagName !== 'INPUT') {
         setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true} : n));
         setSelectedNoteId(null);
       }
@@ -311,12 +372,10 @@ const MainLayout = () => {
         setSelectedNoteId(id);
         setIsPreview(false);
       }
-      if (e.key === 'Escape' && selectedNoteId) {
-        setSelectedNoteId(null);
-      }
+      if (e.key === 'Escape' && selectedNoteId) setSelectedNoteId(null);
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleGlobalKeys);
+    return () => window.removeEventListener('keydown', handleGlobalKeys);
   }, [selectedNoteId, setNotes, currentTab]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -324,7 +383,7 @@ const MainLayout = () => {
     if (!file || !selectedNoteId) return;
     const fileName = `${Date.now()}-${file.name}`;
     const { data, error } = await supabase.storage.from('note-images').upload(fileName, file);
-    if (error) { alert("Upload fehlgeschlagen."); return; }
+    if (error) { alert("Upload failed."); return; }
     if (data) {
       const { data: { publicUrl } } = supabase.storage.from('note-images').getPublicUrl(fileName);
       const imgMarkdown = `\n![image](${publicUrl})\n`;
@@ -340,43 +399,34 @@ const MainLayout = () => {
           <div className={`w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white shadow-lg`}>LB</div>
           <span className="hidden md:block">LifeBase</span>
         </div>
-        
         <nav className="flex-1 px-3 space-y-2 overflow-y-auto">
           <button onClick={() => {setCurrentTab('notes'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'notes' ? accent.lightBg + ' ' + accent.text : textSec + ' hover:' + bgMain}`}><StickyNote size={20}/> <span className="hidden md:block font-medium">{t('navNotes')}</span></button>
           <button onClick={() => {setCurrentTab('trash'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'trash' ? 'bg-red-500/10 text-red-500' : textSec + ' hover:' + bgMain}`}><Archive size={20}/> <span className="hidden md:block font-medium">{t('navTrash')}</span></button>
-          
           {currentTab === 'notes' && (
-            <div className="hidden md:block">
-              <div className={`pt-6 pb-2 px-3 text-xs font-bold uppercase tracking-wider ${textSec} flex justify-between items-center`}>
-                Labels <button onClick={() => setIsLabelManagerOpen(true)} className={`hover:${textMain}`}><Settings size={14}/></button>
-              </div>
+            <div className="hidden md:block pt-4 border-t border-black/5 mt-4">
+              <div className="flex justify-between items-center px-3 mb-2"><span className="text-[10px] font-bold uppercase opacity-40">Labels</span><button onClick={() => setIsLabelManagerOpen(true)}><Settings size={12}/></button></div>
               <button onClick={() => toggleFilter('unlabeled')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes('unlabeled') ? 'bg-black/10 dark:bg-white/10' : textSec + ' hover:' + bgMain}`}><Tag size={14}/> {t('unlabeled')}</button>
-              {labels.map(l => (
-                <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor + ' font-bold' : textSec + ' hover:' + bgMain}`}>
-                  <div className={`w-3 h-3 rounded-full ${l.color}`}/> <span className="truncate">{l.name}</span>
-                </button>
-              ))}
+              {labels.map(l => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor + ' font-bold shadow-sm' : textSec + ' hover:' + bgMain}`}><div className={`w-2 h-2 rounded-full ${l.color}`}/> <span className="truncate">{l.name}</span></button>)}
             </div>
           )}
         </nav>
-        
         <div className={`p-4 border-t ${border}`}><button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center gap-3 p-3 rounded-xl font-medium transition-all ${textSec} hover:${textMain} hover:${bgMain}`}><Settings size={20}/> <span className="hidden md:block">{t('settings')}</span></button></div>
       </aside>
 
       {/* LIST COLUMN */}
       <div className={`w-full md:w-80 border-r ${border} flex flex-col ${selectedNoteId ? 'hidden md:flex' : 'flex'}`}>
         <div className={`p-4 border-b ${border} flex gap-2`}>
-          <div className="relative flex-1"><Search size={16} className={`absolute left-3 top-3 ${textSec}`}/><input value={search} onChange={e => setSearch(e.target.value)} className={`w-full ${bgInput} rounded-xl pl-10 pr-4 py-2 text-sm outline-none ${textMain}`} placeholder={t('search')}/></div>
-          <button onClick={() => { const id = Date.now(); setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...prev]); setSelectedNoteId(id); setIsPreview(false); }} className={`p-2 rounded-xl ${accent.primary} text-white`}><Plus/></button>
+          <div className="relative flex-1"><Search size={16} className={`absolute left-3 top-3 opacity-30`}/><input value={search} onChange={e => setSearch(e.target.value)} className={`w-full ${bgInput} rounded-xl pl-10 pr-4 py-2 text-sm outline-none`} placeholder={t('search')}/></div>
+          <button onClick={() => { const id = Date.now(); setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...prev]); setSelectedNoteId(id); setIsPreview(false); }} className={`p-2 rounded-xl ${accent.primary} text-white shadow-lg`}><Plus/></button>
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {filteredNotes.map(n => {
             const l = labels.find(lab => lab.id === n.labelId);
             return (
-              <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md scale-[1.02]' : 'border-transparent hover:border-gray-500/30'} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
+              <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md scale-[1.02]' : 'border-transparent hover:border-gray-500/20'} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
                 {l && <div className="text-[10px] font-bold uppercase tracking-wider mb-1 opacity-80">{l.name}</div>}
-                <div className="flex justify-between items-center"><h4 className="font-bold truncate">{n.title || 'Untitled'}</h4>{n.isPinned && <Pin size={14} fill="currentColor"/>}</div>
-                <p className="text-xs opacity-70 truncate mt-1">{n.content || 'Kein Inhalt...'}</p>
+                <div className="flex justify-between items-center"><h4 className="font-bold truncate">{n.title || 'Untitled'}</h4>{n.isPinned && <Pin size={12} fill="currentColor" className="opacity-50"/>}</div>
+                <p className="text-xs opacity-70 truncate mt-1">{n.content || '...'}</p>
               </div>
             );
           })}
@@ -386,111 +436,107 @@ const MainLayout = () => {
       {/* EDITOR COLUMN */}
       <main className={`flex-1 flex flex-col relative ${selectedNoteId ? 'flex' : 'hidden md:flex'} ${isClassic ? 'p-4 md:p-8 bg-black/5 dark:bg-white/5' : ''}`}>
         {selectedNote ? (
-          <div className={`flex-1 max-w-4xl mx-auto w-full flex flex-col gap-4 overflow-y-auto ${isClassic ? `${editorBg} ${editorText} p-8 rounded-3xl shadow-xl border ${border}` : 'p-6 md:p-12'}`}>
-            
-            {/* Top Toolbar */}
+          <div className={`flex-1 max-w-4xl mx-auto w-full flex flex-col gap-4 overflow-y-auto ${isClassic ? `${editorBg} ${editorText} p-8 rounded-3xl shadow-2xl border ${border}` : 'p-6 md:p-12'}`}>
             <div className="flex justify-between items-center mb-2">
               <div className="flex gap-2">
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={selectedNote.isPinned ? `p-2 rounded-xl transition-colors bg-yellow-500 text-white` : iconBtnClass}><Pin size={20}/></button>
-                <button onClick={() => setIsPreview(!isPreview)} className={iconBtnClass}>{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
-                {!isPreview && currentTab === 'notes' && <label className={`${iconBtnClass} cursor-pointer`}><Camera size={20}/><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/></label>}
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={`p-2 rounded-xl transition-colors ${selectedNote.isPinned ? 'bg-yellow-500/20 text-yellow-500' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10'}`}><Pin size={20}/></button>
+                <button onClick={() => setIsPreview(!isPreview)} className="p-2 rounded-xl bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10">{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
+                {!isPreview && currentTab === 'notes' && <label className="p-2 rounded-xl bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 cursor-pointer"><Camera size={20}/><input type="file" accept="image/*" className="hidden" onChange={handleImageUpload}/></label>}
               </div>
               <div className={`flex items-center gap-4 text-xs font-mono ${editorSecText}`}>
                 {syncStatus === 'syncing' ? <RefreshCw size={14} className="animate-spin text-indigo-500"/> : (syncStatus === 'error' ? <CloudOff size={14} className="text-red-500"/> : <Cloud size={14}/>)} {t('lastSaved')} {lastSaved}
                 {currentTab === 'trash' ? (
                   <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: false} : n)); setSelectedNoteId(null); }} className="px-3 py-2 bg-green-500/20 text-green-500 rounded-xl font-bold flex gap-2"><RefreshCw size={16}/> {t('restore')}</button>
                 ) : (
-                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true} : n)); setSelectedNoteId(null); }} className={iconBtnClass}><Trash2 size={20}/></button>
+                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true} : n)); setSelectedNoteId(null); }} className="text-red-400 hover:bg-red-500/10 p-2 rounded-xl"><Trash2 size={20}/></button>
                 )}
               </div>
             </div>
 
-            {/* Label Color Selector */}
             {currentTab === 'notes' && (
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 dark:bg-white/5 opacity-50 hover:opacity-100'}`}>{t('unlabeled')}</button>
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
                 {labels.map(l => (
-                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/30 dark:ring-white/50 scale-105 shadow-md' : 'opacity-60 hover:opacity-100'}`}>{l.name}</button>
+                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105' : 'opacity-40'}`}>{l.name}</button>
                 ))}
               </div>
             )}
 
-            {/* Content Area */}
-            <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-4xl font-bold bg-transparent outline-none placeholder:opacity-40 ${currentTab === 'trash' ? 'opacity-50' : editorText}`} placeholder={t('titlePlaceholder')}/>
+            <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-4xl font-bold bg-transparent outline-none placeholder:opacity-20 ${currentTab === 'trash' ? 'opacity-50' : editorText}`} placeholder={t('titlePlaceholder')}/>
             
             {isPreview || currentTab === 'trash' ? (
               <div className={`flex-1 text-lg leading-relaxed space-y-2 overflow-y-auto ${editorSecText}`}>{renderMarkdown(selectedNote.content)}</div>
             ) : (
-              <textarea value={selectedNote.content} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} className={`flex-1 bg-transparent outline-none text-lg resize-none font-mono placeholder:opacity-40 ${editorSecText}`} placeholder={t('contentPlaceholder')}/>
+              <textarea value={selectedNote.content} 
+                onKeyDown={(e) => handleSmartEditor(e, selectedNote.content, (val) => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: val} : n)))}
+                onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} 
+                className={`flex-1 bg-transparent outline-none text-lg resize-none font-mono placeholder:opacity-20 ${editorSecText}`} placeholder={t('contentPlaceholder')}/>
             )}
           </div>
         ) : (
           <div className={`flex-1 flex flex-col items-center justify-center opacity-10 ${textMain}`}>
-            {currentTab === 'trash' ? <Archive size={120}/> : <StickyNote size={120}/>}
-            <p className="mt-4 font-bold tracking-widest uppercase">Keine Auswahl</p>
+            <StickyNote size={120}/><p className="mt-4 font-bold tracking-widest uppercase">Select a note</p>
           </div>
         )}
       </main>
 
+      {/* MODALS */}
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title={t('settings')}>
-        <div className="space-y-8">
-           <div><h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${textSec}`}>{t('theme')}</h4><div className="flex gap-2"><Button onClick={() => setMode('light')} variant={mode === 'light' ? 'primary' : 'secondary'} className="flex-1">{t('light')}</Button><Button onClick={() => setMode('dark')} variant={mode === 'dark' ? 'primary' : 'secondary'} className="flex-1">{t('dark')}</Button></div></div>
-           <div><h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${textSec}`}>{t('layout')}</h4><div className="flex gap-2"><Button onClick={() => setDesignMode('minimalist')} variant={designMode === 'minimalist' ? 'primary' : 'secondary'} className="flex-1">{t('minimalist')}</Button><Button onClick={() => setDesignMode('classic')} variant={designMode === 'classic' ? 'primary' : 'secondary'} className="flex-1">{t('classic')}</Button></div></div>
-           <div><h4 className={`text-xs font-bold uppercase tracking-wider mb-3 ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <Button key={l} onClick={() => setLanguage(l as any)} variant={language === l ? 'primary' : 'secondary'} className="flex-1 uppercase">{l}</Button>)}</div></div>
-           <div className="pt-4 border-t border-red-500/20"><Button onClick={() => supabase.auth.signOut()} variant="danger" className="w-full"><LogOut size={18}/> {t('logout')}</Button></div>
+        <div className="space-y-6">
+           <button onClick={() => {setIsSettingsOpen(false); setIsManualOpen(true);}} className={`w-full flex items-center justify-between p-4 rounded-2xl bg-indigo-500/10 text-indigo-500 font-bold border border-indigo-500/20`}><div className="flex items-center gap-3"><BookOpen size={20}/> {t('manual')}</div><Plus size={16}/></button>
+           <div><h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('theme')}</h4><div className="flex gap-2"><Button onClick={() => setMode('light')} variant={mode === 'light' ? 'primary' : 'secondary'} className="flex-1">Light</Button><Button onClick={() => setMode('dark')} variant={mode === 'dark' ? 'primary' : 'secondary'} className="flex-1">Dark</Button></div></div>
+           <div><h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('layout')}</h4><div className="flex gap-2"><Button onClick={() => setDesignMode('minimalist')} variant={designMode === 'minimalist' ? 'primary' : 'secondary'} className="flex-1">Minimal</Button><Button onClick={() => setDesignMode('classic')} variant={designMode === 'classic' ? 'primary' : 'secondary'} className="flex-1">Classic</Button></div></div>
+           <div><h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <Button key={l} onClick={() => setLanguage(l as any)} variant={language === l ? 'primary' : 'secondary'} className="flex-1 uppercase">{l}</Button>)}</div></div>
+           <div className="pt-4 border-t border-black/5 dark:border-white/5"><Button onClick={() => supabase.auth.signOut()} variant="danger" className="w-full"><LogOut size={18}/> {t('logout')}</Button></div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} title={t('manual')}>
+        <div className="space-y-6 text-sm">
+          <section>
+            <h4 className="font-bold text-indigo-500 mb-2">Keyboard Shortcuts</h4>
+            <ul className="space-y-1 opacity-80">
+              <li><kbd className="bg-black/10 px-1 rounded">Strg</kbd> + <kbd className="bg-black/10 px-1 rounded">N</kbd> : Neue Notiz</li>
+              <li><kbd className="bg-black/10 px-1 rounded">Entf</kbd> : In Papierkorb verschieben</li>
+              <li><kbd className="bg-black/10 px-1 rounded">Esc</kbd> : Notiz schließen</li>
+            </ul>
+          </section>
+          <section>
+            <h4 className="font-bold text-indigo-500 mb-2">Smart Editor (Obsidian Style)</h4>
+            <ul className="space-y-2 opacity-80">
+              <li><strong>Listen:</strong> Tippe <code>- </code> oder <code>1. </code> und drücke Enter für die nächste Zeile.</li>
+              <li><strong>Checkboxen:</strong> Nutze <code>- [ ] </code> für To-Dos.</li>
+              <li><strong>Einrücken:</strong> Nutze <kbd className="bg-black/10 px-1 rounded">Tab</kbd> und <kbd className="bg-black/10 px-1 rounded">Shift</kbd>+<kbd className="bg-black/10 px-1 rounded">Tab</kbd>.</li>
+              <li><strong>Wrapping:</strong> Markiere Text und tippe <code>*</code> oder <code>(</code> um ihn zu umschließen.</li>
+              <li><strong>Auto-Pairing:</strong> Klammern und " werden automatisch geschlossen.</li>
+            </ul>
+          </section>
         </div>
       </Modal>
       
-      {/* Mobile Modal for editing */}
-      <div className="md:hidden">
-        <Modal 
-          isOpen={!!selectedNoteId && isClassic} 
-          onClose={() => setSelectedNoteId(null)} 
-          title={selectedNote?.title || t('newNote')} 
-          customTheme={isClassic && activeLabel ? { bg: activeLabel.color, text: activeLabel.textColor } : undefined}
-        >
-          {selectedNote && (
-            <div className="space-y-4">
-              <input value={selectedNote.title || ''} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`w-full bg-black/5 dark:bg-white/5 rounded-lg p-3 font-bold outline-none placeholder:opacity-50 ${isClassic && activeLabel ? activeLabel.textColor : ''}`} placeholder={t('titlePlaceholder')} />
-              <textarea value={selectedNote.content || ''} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} className={`w-full bg-black/5 dark:bg-white/5 rounded-lg p-3 h-64 resize-none outline-none font-mono placeholder:opacity-50 ${isClassic && activeLabel ? activeLabel.textColor : ''}`} placeholder={t('contentPlaceholder')} />
-              <div className="flex gap-2 flex-wrap scrollbar-hide">
-                 <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className="px-3 py-1.5 rounded-full text-xs bg-black/10 dark:bg-white/10 font-bold">{t('unlabeled')}</button>
-                 {labels.map(l => <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-full text-xs font-bold ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/50 scale-105' : 'opacity-70'}`}>{l.name}</button>)}
-              </div>
-              <Button onClick={() => setSelectedNoteId(null)} className="w-full mt-2 bg-black/10 text-black shadow-none">{t('save')}</Button>
-            </div>
-          )}
-        </Modal>
-      </div>
-
       <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} />
     </div>
   );
 };
 
 // ==========================================
-// 6. AUTH & APP ENTRY
+// 7. AUTH & APP ENTRY
 // ==========================================
 const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) alert(error.message);
-    setLoading(false);
   };
-
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <form onSubmit={handleLogin} className="bg-gray-900 border border-gray-800 p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl">
         <div className="flex flex-col items-center mb-6"><div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(79,70,229,0.3)]"><Lock size={32} color="white"/></div><h1 className="text-3xl font-black tracking-tight text-white">LifeBase</h1></div>
         <input className="w-full bg-black/50 border border-gray-800 rounded-xl p-4 text-white outline-none focus:border-indigo-500 transition-colors" type="email" placeholder="E-Mail" value={email} onChange={e => setEmail(e.target.value)} required />
         <input className="w-full bg-black/50 border border-gray-800 rounded-xl p-4 text-white outline-none focus:border-indigo-500 transition-colors" type="password" placeholder="Passwort" value={password} onChange={e => setPassword(e.target.value)} required />
-        <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 mt-2">{loading ? '...' : 'Secure Login'}</button>
+        <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all mt-2">Secure Login</button>
       </form>
     </div>
   );
@@ -499,15 +545,12 @@ const AuthScreen = () => {
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setLoading(false); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     return () => subscription.unsubscribe();
   }, []);
-
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><RefreshCw className="animate-spin text-indigo-500" size={32}/></div>;
-
   return (
     <ThemeProvider>
       {!session ? <AuthScreen /> : <DataProvider><MainLayout /></DataProvider>}
