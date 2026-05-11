@@ -307,6 +307,83 @@ const LabelManager: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOp
   );
 };
 
+const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
+  const { bgCard, accent } = useTheme();
+  const { setNotes } = useData();
+  const [swipeX, setSwipeX] = useState(0);
+  const [hoverRatio, setHoverRatio] = useState<number | null>(null);
+  const touchStartX = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (currentTab === 'trash') return;
+    const diff = e.touches[0].clientX - touchStartX.current;
+    if (diff > 0) setSwipeX(diff);
+  };
+  
+  const handleTouchEnd = () => {
+    if (currentTab === 'trash') return;
+    if (swipeX > 100) {
+      setSwipeX(window.innerWidth);
+      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)), 250);
+    } else setSwipeX(0);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (currentTab === 'trash') return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    setHoverRatio(x / rect.width);
+  };
+
+  let overlayBg = 'transparent';
+  if (hoverRatio !== null && currentTab !== 'trash') {
+    const isLeft = hoverRatio < 0.5;
+    const intensity = isLeft ? (0.5 - hoverRatio) * 2 : (hoverRatio - 0.5) * 2;
+    overlayBg = isLeft ? `rgba(234, 179, 8, ${intensity * 0.15})` : `rgba(239, 68, 68, ${intensity * 0.15})`;
+  }
+
+  return (
+    <div className="relative mb-3 rounded-2xl overflow-hidden shrink-0">
+      <div className="absolute inset-0 bg-red-500 flex items-center px-6 text-white justify-start">
+        <Trash2 size={24} />
+      </div>
+      <div 
+        onClick={() => onClick(note.id)}
+        onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setHoverRatio(null)}
+        style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? 'transform 0.25s ease-out' : 'none' }}
+        className={`group relative p-4 rounded-2xl cursor-pointer ring-inset transition-all box-border
+          ${isSelected ? `ring-2 ${accent.ring} shadow-md` : 'ring-2 ring-transparent hover:ring-black/10 dark:hover:ring-white/10'} 
+          ${label ? label.color + ' ' + label.textColor : bgCard} 
+          ${currentTab === 'trash' ? 'opacity-50 grayscale pointer-events-none' : ''}`}
+      >
+        <div className="absolute inset-0 rounded-2xl pointer-events-none transition-colors duration-75" style={{ backgroundColor: overlayBg }} />
+        
+        {currentTab !== 'trash' && (
+          <>
+            <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isPinned: !x.isPinned, updatedAt: Date.now()} : x)); }} className={`absolute left-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex ${note.isPinned ? 'text-yellow-600' : 'hover:text-yellow-600'}`}>
+              <Pin size={16} fill={note.isPinned ? "currentColor" : "none"} />
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)); }} className="absolute right-2 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex hover:text-red-600">
+              <Trash2 size={16} />
+            </button>
+          </>
+        )}
+
+        <div className="relative z-0">
+           {label && <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-80">{label.name}</div>}
+           <div className="flex justify-between items-start gap-2">
+             <h4 className="font-bold text-base leading-tight line-clamp-1">{note.title || 'Untitled'}</h4>
+             {note.isPinned && <Pin size={12} fill="currentColor" className="opacity-50 shrink-0 mt-1 md:hidden"/>}
+           </div>
+           <p className="text-xs opacity-70 mt-1 line-clamp-2 leading-relaxed font-mono">{note.content || '...'}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const MainLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput, mode, setMode, designMode, setDesignMode, language, setLanguage } = useTheme();
   const { notes, setNotes, labels, syncStatus, lastSaved, activeFilters, toggleFilter } = useData();
@@ -323,12 +400,10 @@ const MainLayout = () => {
 
   const titleRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLTextAreaElement>(null);
-  const touchStartX = useRef(0);
 
   const activeNotes = notes.filter(n => !n.isDeleted);
   const trashNotes = notes.filter(n => n.isDeleted);
   const selectedNote = notes.find(n => n.id === selectedNoteId);
-
   const displayNotes = currentTab === 'notes' ? activeNotes : trashNotes;
   
   const sortedNotes = [...displayNotes].sort((a, b) => {
@@ -408,7 +483,7 @@ const MainLayout = () => {
     setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString(), updatedAt: id}, ...prev]); 
     setSelectedNoteId(id); 
     setIsPreview(false);
-    setTimeout(() => titleRef.current?.focus(), 50);
+    setTimeout(() => titleRef.current?.focus(), 100);
   };
 
   const handleCopy = () => {
@@ -470,40 +545,10 @@ const MainLayout = () => {
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 md:pb-4">
-          {filteredNotes.map(n => {
-            const l = labels.find(lab => lab.id === n.labelId);
-            return (
-              <div 
-                key={n.id} 
-                onClick={() => setSelectedNoteId(n.id)}
-                onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
-                onTouchEnd={(e) => {
-                  const diff = e.changedTouches[0].clientX - touchStartX.current;
-                  if (diff > 120 && currentTab === 'notes') {
-                    setNotes(prev => prev.map(x => x.id === n.id ? {...x, isDeleted: true} : x));
-                  }
-                }}
-                className={`group relative p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md' : `border-transparent hover:border-black/10 dark:hover:border-white/10`} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale pointer-events-none' : ''}`}
-              >
-                <div className="absolute left-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 hidden md:block">
-                  <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === n.id ? {...x, isPinned: !x.isPinned, updatedAt: Date.now()} : x)); }} className="p-2 hover:text-yellow-500"><Pin size={16} fill={n.isPinned ? "currentColor" : "none"} /></button>
-                </div>
-                <div className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 hidden md:block">
-                  <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === n.id ? {...x, isDeleted: true} : x)); }} className="p-2 hover:text-red-500"><Trash2 size={16}/></button>
-                </div>
-
-                <div className="flex flex-col">
-                  {l && <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-80">{l.name}</div>}
-                  <div className="flex justify-between items-start gap-2">
-                    <h4 className="font-bold text-base leading-tight line-clamp-1">{n.title || 'Untitled'}</h4>
-                    {n.isPinned && <Pin size={12} fill="currentColor" className="opacity-50 shrink-0 mt-1 md:hidden"/>}
-                  </div>
-                  <p className="text-xs opacity-70 mt-1 line-clamp-2 leading-relaxed font-mono">{n.content || '...'}</p>
-                </div>
-              </div>
-            );
-          })}
+        <div className="flex-1 overflow-x-hidden overflow-y-auto p-4 pb-24 md:pb-4">
+          {filteredNotes.map(n => (
+            <NoteCard key={n.id} note={n} label={labels.find(l => l.id === n.labelId)} isSelected={selectedNoteId === n.id} currentTab={currentTab} onClick={setSelectedNoteId} />
+          ))}
         </div>
 
         {!selectedNoteId && currentTab === 'notes' && (
