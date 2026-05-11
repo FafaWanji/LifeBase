@@ -350,13 +350,51 @@ const MainLayout = () => {
   const isClassic = designMode === 'classic';
   const activeLabel = labels.find(l => l.id === selectedNote?.labelId);
   
-  // Editor Styling
   const editorWrapperClass = isClassic ? 'bg-black/5 dark:bg-white/5 md:p-8' : '';
   const editorInnerClass = isClassic 
     ? `${activeLabel ? activeLabel.color : bgCard} ${activeLabel ? activeLabel.textColor : textMain} p-4 sm:p-6 md:p-8 md:rounded-3xl shadow-xl border-t sm:border ${border}` 
     : 'p-4 sm:p-6 md:p-12';
   const editorSecTextClass = isClassic && activeLabel ? 'opacity-70 text-black/70' : textSec;
   const iconBtnClass = `p-2 rounded-xl transition-colors ${isClassic && activeLabel ? 'bg-black/10 hover:bg-black/20 text-black/70' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 dark:hover:bg-white/10'}`;
+
+  // History API for system back gesture
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isManualOpen) setIsManualOpen(false);
+      else if (isSettingsOpen) setIsSettingsOpen(false);
+      else if (isLabelManagerOpen) setIsLabelManagerOpen(false);
+      else if (selectedNoteId !== null) setSelectedNoteId(null);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isManualOpen, isSettingsOpen, isLabelManagerOpen, selectedNoteId]);
+
+  useEffect(() => {
+    if (isManualOpen || isSettingsOpen || isLabelManagerOpen || selectedNoteId !== null) {
+      window.history.pushState({ popup: true }, '');
+    }
+  }, [isManualOpen, isSettingsOpen, isLabelManagerOpen, selectedNoteId]);
+
+  // Touch gesture handler
+  useEffect(() => {
+    let touchStartX = 0;
+    const handleTouchStart = (e: TouchEvent) => { touchStartX = e.touches[0].clientX; };
+    const handleTouchEnd = (e: TouchEvent) => {
+      const touchEndX = e.changedTouches[0].clientX;
+      if (touchStartX > window.innerWidth - 40 && touchStartX - touchEndX > 50) {
+        if (isManualOpen) setIsManualOpen(false);
+        else if (isSettingsOpen) setIsSettingsOpen(false);
+        else if (isLabelManagerOpen) setIsLabelManagerOpen(false);
+        else if (selectedNoteId !== null) setSelectedNoteId(null);
+      }
+    };
+    document.addEventListener('touchstart', handleTouchStart);
+    document.addEventListener('touchend', handleTouchEnd);
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isManualOpen, isSettingsOpen, isLabelManagerOpen, selectedNoteId]);
 
   useEffect(() => {
     const handleGlobalKeys = (e: KeyboardEvent) => {
@@ -398,10 +436,8 @@ const MainLayout = () => {
   };
 
   return (
-    // 100dvh verhindert das Abschneiden durch die Safari/Chrome Bottom-Nav auf Handys
-    <div className={`h-[100dvh] w-full flex ${bgMain} ${textMain} font-sans overflow-hidden`}>
-      
-      {/* 1. DESKTOP SIDEBAR (Versteckt auf Mobile) */}
+    <div className={`h-[100dvh] w-full flex ${bgMain} ${textMain} font-sans overflow-hidden overscroll-none`}>
+      {/* 1. DESKTOP SIDEBAR */}
       <aside className={`hidden md:flex w-64 border-r ${border} flex-col ${bgCard}`}>
         <div className="p-6 font-bold text-xl flex items-center gap-2">
           <div className={`w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white shadow-lg`}>LB</div>
@@ -420,9 +456,8 @@ const MainLayout = () => {
         </nav>
       </aside>
 
-      {/* 2. LIST COLUMN (Versteckt auf Mobile, wenn Notiz offen ist) */}
+      {/* 2. LIST COLUMN */}
       <div className={`${selectedNoteId ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 border-r ${border} bg-transparent h-full`}>
-        {/* Search Header */}
         <div className={`p-4 border-b ${border} flex gap-3 items-center`}>
           <div className={`md:hidden w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white font-bold shrink-0 shadow-md`}>LB</div>
           <div className="relative flex-1">
@@ -432,7 +467,6 @@ const MainLayout = () => {
           <button onClick={createNewNote} className={`hidden md:flex p-3 rounded-xl ${accent.primary} text-white shadow-lg`}><Plus size={20}/></button>
         </div>
         
-        {/* Mobile-Only Label Filter */}
         {currentTab === 'notes' && (
           <div className={`md:hidden flex gap-2 overflow-x-auto p-3 border-b ${border} scrollbar-hide shrink-0`}>
             <button onClick={() => setIsLabelManagerOpen(true)} className={`px-3 py-1.5 rounded-full text-xs font-bold bg-black/5 dark:bg-white/5 ${textSec}`}><Settings size={14}/></button>
@@ -443,52 +477,38 @@ const MainLayout = () => {
           </div>
         )}
 
-        {/* Notes List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-24 md:pb-4">
           {filteredNotes.map(n => {
             const l = labels.find(lab => lab.id === n.labelId);
             return (
               <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`group p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md' : `border-transparent hover:border-black/10 dark:hover:border-white/10`} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
                 {l && <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-80">{l.name}</div>}
-                
                 <div className="flex justify-between items-start gap-2">
                    <h4 className="font-bold text-base leading-tight line-clamp-1">{n.title || 'Untitled'}</h4>
-                   
-                   {/* Pinnen direkt in der Liste (Ausgeblendet im Papierkorb) */}
                    {currentTab !== 'trash' && (
                      <button 
-                       onClick={(e) => {
-                         e.stopPropagation(); // Verhindert das Öffnen der Notiz beim Pinnen
-                         setNotes(prev => prev.map(x => x.id === n.id ? {...x, isPinned: !x.isPinned} : x));
-                       }}
+                       onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === n.id ? {...x, isPinned: !x.isPinned} : x)); }}
                        className={`p-1.5 -mr-1.5 -mt-1.5 rounded-lg shrink-0 transition-all ${n.isPinned ? 'text-yellow-500 opacity-100' : 'opacity-30 md:opacity-0 md:group-hover:opacity-50 hover:!opacity-100 text-inherit'}`}
-                     >
-                       <Pin size={16} fill={n.isPinned ? "currentColor" : "none"} />
-                     </button>
+                     ><Pin size={16} fill={n.isPinned ? "currentColor" : "none"} /></button>
                    )}
                 </div>
-                
                 <p className="text-xs opacity-70 mt-1 line-clamp-2 leading-relaxed font-mono">{n.content || '...'}</p>
               </div>
             );
           })}
         </div>
 
-        {/* Mobile Floating Action Button */}
         {!selectedNoteId && currentTab === 'notes' && (
            <button onClick={createNewNote} className={`md:hidden absolute bottom-20 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-2xl flex items-center justify-center z-50 transition-transform active:scale-95`}><Plus size={28}/></button>
         )}
       </div>
 
-      {/* 3. EDITOR COLUMN (Versteckt auf Mobile, wenn KEINE Notiz offen ist) */}
+      {/* 3. EDITOR COLUMN */}
       <main className={`${selectedNoteId ? 'flex' : 'hidden md:flex'} flex-1 flex-col relative h-full ${editorWrapperClass}`}>
         {selectedNote ? (
           <div className={`flex-1 max-w-4xl mx-auto w-full flex flex-col gap-4 overflow-y-auto ${editorInnerClass}`}>
-            
-            {/* Top Toolbar (Responsive) */}
-            <div className="flex justify-between items-center mb-2 md:mb-4">
+            <div className="flex justify-between items-center mb-2 md:mb-4 shrink-0">
               <div className="flex gap-1.5 md:gap-2 items-center">
-                {/* Mobile Back Button */}
                 <button onClick={() => setSelectedNoteId(null)} className="md:hidden p-2 -ml-2 text-inherit opacity-70 hover:opacity-100"><ChevronLeft size={28}/></button>
                 <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isPinned: !n.isPinned} : n))} className={`p-2 rounded-xl transition-colors ${selectedNote.isPinned ? 'bg-yellow-500 text-white shadow-md' : iconBtnClass}`}><Pin size={20}/></button>
                 <button onClick={() => setIsPreview(!isPreview)} className={iconBtnClass}>{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
@@ -507,9 +527,8 @@ const MainLayout = () => {
               </div>
             </div>
 
-            {/* Label Selector inside Editor (Desktop only) */}
             {currentTab === 'notes' && (
-              <div className="hidden md:flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              <div className="hidden md:flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0">
                 <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: ''} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
                 {labels.map(l => (
                   <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105 shadow-sm' : 'opacity-40 hover:opacity-100'}`}>{l.name}</button>
@@ -517,8 +536,7 @@ const MainLayout = () => {
               </div>
             )}
 
-            {/* Input Area */}
-            <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-3xl md:text-5xl font-black bg-transparent outline-none placeholder:opacity-30 ${currentTab === 'trash' ? 'opacity-50' : (isClassic && activeLabel ? activeLabel.textColor : textMain)}`} placeholder={t('titlePlaceholder')}/>
+            <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-3xl md:text-5xl font-black bg-transparent outline-none placeholder:opacity-30 shrink-0 ${currentTab === 'trash' ? 'opacity-50' : (isClassic && activeLabel ? activeLabel.textColor : textMain)}`} placeholder={t('titlePlaceholder')}/>
             
             {isPreview || currentTab === 'trash' ? (
               <div className={`flex-1 text-base md:text-lg leading-relaxed space-y-2 overflow-y-auto pb-6 ${editorSecTextClass}`}>{renderMarkdown(selectedNote.content)}</div>
@@ -536,7 +554,7 @@ const MainLayout = () => {
         )}
       </main>
 
-      {/* 4. MOBILE BOTTOM NAV (Versteckt, wenn Notiz im Fullscreen offen ist) */}
+      {/* 4. MOBILE BOTTOM NAV */}
       {!selectedNoteId && (
         <nav className={`md:hidden fixed bottom-0 left-0 right-0 flex justify-around items-center p-3 border-t ${border} ${bgMain} z-40 pb-safe`}>
            <button onClick={() => setCurrentTab('notes')} className={`flex flex-col items-center gap-1 p-2 ${currentTab === 'notes' ? accent.text : textSec}`}><StickyNote size={24}/><span className="text-[10px] font-bold">{t('navNotes')}</span></button>
@@ -607,7 +625,7 @@ const AuthScreen = () => {
         <div className="flex flex-col items-center mb-6"><div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(79,70,229,0.3)]"><Lock size={32} color="white"/></div><h1 className="text-3xl font-black tracking-tight text-white">LifeBase</h1></div>
         <input className="w-full bg-black/50 border border-gray-800 rounded-xl p-4 text-white outline-none focus:border-indigo-500 transition-colors" type="email" placeholder="E-Mail" value={email} onChange={e => setEmail(e.target.value)} required />
         <input className="w-full bg-black/50 border border-gray-800 rounded-xl p-4 text-white outline-none focus:border-indigo-500 transition-colors" type="password" placeholder="Passwort" value={password} onChange={e => setPassword(e.target.value)} required />
-        <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 mt-2">{loading ? 'Lade...' : 'Secure Login'}</button>
+        <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all mt-2">{loading ? 'Lade...' : 'Secure Login'}</button>
       </form>
     </div>
   );
