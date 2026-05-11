@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, createContext, useContext, type Rea
 import { 
   StickyNote, List, Plus, Trash2, X, 
   Settings, Menu, Download, Upload, 
-  Pencil, Tag, Search, Cloud, CloudOff, LogOut, Lock
+  Pencil, Tag, Search, Cloud, CloudOff, LogOut, Lock,
+  Eye, Edit3, RefreshCw, Archive
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -22,7 +23,7 @@ type AccentKey = 'indigo' | 'rose' | 'emerald' | 'amber' | 'cyan' | 'violet';
 type Language = 'de' | 'en' | 'tr';
 
 interface Label { id: string; name: string; color: string; textColor: string; }
-interface Note { id: number; title: string; content: string; labelId: string; date: string; }
+interface Note { id: number; title: string; content: string; labelId: string; date: string; isDeleted?: boolean; }
 interface TierItem { id: number; name: string; tier: string; }
 interface TierList { id: number; title: string; items: TierItem[]; }
 interface AccentProfile { name: string; primary: string; hover: string; text: string; ring: string; lightBg: string; border: string; gradient: string; }
@@ -41,6 +42,7 @@ interface DataContextType {
   activeFilters: string[]; setActiveFilters: React.Dispatch<React.SetStateAction<string[]>>;
   toggleFilter: (id: string) => void;
   syncStatus: 'synced' | 'syncing' | 'error';
+  lastSaved: string | null;
 }
 
 const defaultLabels: Label[] = [
@@ -63,9 +65,9 @@ const availableColors = [
 ];
 
 const dictionary: Record<Language, Record<string, string>> = {
-  de: { appTitle: "LifeBase", navNotes: "Notizen", navTiers: "Rankings", myNotes: "Meine Notizen", new: "Neu", noNotes: "Keine Notizen.", editNote: "Bearbeiten", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt...", selectLabel: "Label", edit: "Ändern", noLabel: "Kein Label", save: "Speichern", create: "Erstellen", manageLabels: "Labels", newLabel: "Neu", labelNamePlaceholder: "Name", existingLabels: "Vorhandene", deleteLabelConfirm: "Löschen?", deleteLabelError: "Min. 1 Label!", myTierLists: "Rankings", noTierLists: "Keine Listen.", itemsCount: "Einträge", newTierList: "Neue Liste", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Dazu", settings: "Einstellungen", appearance: "Design", light: "Hell", dark: "Dunkel", language: "Sprache", quickSync: "Sync", copyData: "Kopieren", copied: "Kopiert", pasteFromClipboard: "Einfügen", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud-Synchronisierung ist aktiv.", backup: "Backup", saveToFile: "Speichern", loadFromFile: "Laden", dataInfo: "Daten in Supabase Cloud gespeichert.", overwriteConfirm: "Überschreiben?", importSuccess: "Erfolg!", importError: "Fehler.", autoImportError: "Manuell einfügen:", mergeSuccess: "Neu importiert:", unlabeled: "Labellos", dashboard: "Übersicht", labels: "Labels", login: "Einloggen", logout: "Abmelden", email: "E-Mail", password: "Passwort" },
-  en: { appTitle: "LifeBase", navNotes: "Notes", navTiers: "Rankings", myNotes: "My Notes", new: "New", noNotes: "No notes.", editNote: "Edit", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content...", selectLabel: "Label", edit: "Edit", noLabel: "None", save: "Save", create: "Create", manageLabels: "Labels", newLabel: "New", labelNamePlaceholder: "Name", existingLabels: "Existing", deleteLabelConfirm: "Delete?", deleteLabelError: "Min 1 label!", myTierLists: "Rankings", noTierLists: "No lists.", itemsCount: "items", newTierList: "New List", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Add", settings: "Settings", appearance: "Design", light: "Light", dark: "Dark", language: "Language", quickSync: "Sync", copyData: "Copy", copied: "Copied", pasteFromClipboard: "Paste", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud Sync is active.", backup: "Backup", saveToFile: "Save", loadFromFile: "Load", dataInfo: "Stored in Supabase Cloud.", overwriteConfirm: "Overwrite?", importSuccess: "Success!", importError: "Error.", autoImportError: "Paste manually:", mergeSuccess: "Imported:", unlabeled: "Unlabeled", dashboard: "Dashboard", labels: "Labels", login: "Login", logout: "Logout", email: "Email", password: "Password" },
-  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTiers: "Sıralama", myNotes: "Notlarım", new: "Yeni", noNotes: "Not yok.", editNote: "Düzenle", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik...", selectLabel: "Etiket", edit: "Düzenle", noLabel: "Yok", save: "Kaydet", create: "Oluştur", manageLabels: "Etiketler", newLabel: "Yeni", labelNamePlaceholder: "İsim", existingLabels: "Mevcut", deleteLabelConfirm: "Sil?", deleteLabelError: "En az 1!", myTierLists: "Listeler", noTierLists: "Liste yok.", itemsCount: "öğe", newTierList: "Yeni Liste", tierListNamePlaceholder: "İsim", tierItemPlaceholder: "İsim", addItem: "Ekle", settings: "Ayarlar", appearance: "Görünüm", light: "Açık", dark: "Koyu", language: "Dil", quickSync: "Senk", copyData: "Kopyala", copied: "Kopyalandı", pasteFromClipboard: "Yapıştır", pastePlaceholder: "Kod...", import: "İçe Aktar", syncInfo: "Bulut senkronizasyonu aktif.", backup: "Yedek", saveToFile: "Kaydet", loadFromFile: "Yükle", dataInfo: "Supabase Cloud'da kayıtlı.", overwriteConfirm: "Üzerine yaz?", importSuccess: "Başarılı!", importError: "Hata.", autoImportError: "Manuel yapıştır:", mergeSuccess: "Eklendi:", unlabeled: "Etiketsiz", dashboard: "Panel", labels: "Etiketler", login: "Giriş Yap", logout: "Çıkış Yap", email: "E-posta", password: "Şifre" }
+  de: { appTitle: "LifeBase", navNotes: "Notizen", navTiers: "Rankings", navTrash: "Papierkorb", myNotes: "Meine Notizen", new: "Neu", noNotes: "Keine Notizen.", editNote: "Bearbeiten", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown unterstützt)...", selectLabel: "Label", edit: "Ändern", noLabel: "Kein Label", save: "Speichern", create: "Erstellen", manageLabels: "Labels", newLabel: "Neu", labelNamePlaceholder: "Name", existingLabels: "Vorhandene", deleteLabelConfirm: "Löschen?", deleteLabelError: "Min. 1 Label!", myTierLists: "Rankings", noTierLists: "Keine Listen.", itemsCount: "Einträge", newTierList: "Neue Liste", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Dazu", settings: "Einstellungen", appearance: "Design", light: "Hell", dark: "Dunkel", language: "Sprache", quickSync: "Sync", copyData: "Kopieren", copied: "Kopiert", pasteFromClipboard: "Einfügen", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud-Synchronisierung ist aktiv.", backup: "Backup", saveToFile: "Speichern", loadFromFile: "Laden", dataInfo: "Daten in Supabase Cloud gespeichert.", overwriteConfirm: "Überschreiben?", importSuccess: "Erfolg!", importError: "Fehler.", autoImportError: "Manuell einfügen:", mergeSuccess: "Neu importiert:", unlabeled: "Labellos", dashboard: "Übersicht", labels: "Labels", login: "Einloggen", logout: "Abmelden", email: "E-Mail", password: "Passwort", restore: "Wiederherstellen", deletePerm: "Endgültig löschen", emptyTrash: "Papierkorb leeren", lastSaved: "Zuletzt gespeichert:" },
+  en: { appTitle: "LifeBase", navNotes: "Notes", navTiers: "Rankings", navTrash: "Trash", myNotes: "My Notes", new: "New", noNotes: "No notes.", editNote: "Edit", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown supported)...", selectLabel: "Label", edit: "Edit", noLabel: "None", save: "Save", create: "Create", manageLabels: "Labels", newLabel: "New", labelNamePlaceholder: "Name", existingLabels: "Existing", deleteLabelConfirm: "Delete?", deleteLabelError: "Min 1 label!", myTierLists: "Rankings", noTierLists: "No lists.", itemsCount: "items", newTierList: "New List", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Add", settings: "Settings", appearance: "Design", light: "Light", dark: "Dark", language: "Language", quickSync: "Sync", copyData: "Copy", copied: "Copied", pasteFromClipboard: "Paste", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud Sync is active.", backup: "Backup", saveToFile: "Save", loadFromFile: "Load", dataInfo: "Stored in Supabase Cloud.", overwriteConfirm: "Overwrite?", importSuccess: "Success!", importError: "Error.", autoImportError: "Paste manually:", mergeSuccess: "Imported:", unlabeled: "Unlabeled", dashboard: "Dashboard", labels: "Labels", login: "Login", logout: "Logout", email: "Email", password: "Password", restore: "Restore", deletePerm: "Delete permanently", emptyTrash: "Empty Trash", lastSaved: "Last saved:" },
+  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTiers: "Sıralama", navTrash: "Çöp Kutusu", myNotes: "Notlarım", new: "Yeni", noNotes: "Not yok.", editNote: "Düzenle", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown desteklenir)...", selectLabel: "Etiket", edit: "Düzenle", noLabel: "Yok", save: "Kaydet", create: "Oluştur", manageLabels: "Etiketler", newLabel: "Yeni", labelNamePlaceholder: "İsim", existingLabels: "Mevcut", deleteLabelConfirm: "Sil?", deleteLabelError: "En az 1!", myTierLists: "Listeler", noTierLists: "Liste yok.", itemsCount: "öğe", newTierList: "Yeni Liste", tierListNamePlaceholder: "İsim", tierItemPlaceholder: "İsim", addItem: "Ekle", settings: "Ayarlar", appearance: "Görünüm", light: "Açık", dark: "Koyu", language: "Dil", quickSync: "Senk", copyData: "Kopyala", copied: "Kopyalandı", pasteFromClipboard: "Yapıştır", pastePlaceholder: "Kod...", import: "İçe Aktar", syncInfo: "Bulut senkronizasyonu aktif.", backup: "Yedek", saveToFile: "Kaydet", loadFromFile: "Yükle", dataInfo: "Supabase Cloud'da kayıtlı.", overwriteConfirm: "Üzerine yaz?", importSuccess: "Başarılı!", importError: "Hata.", autoImportError: "Manuel yapıştır:", mergeSuccess: "Eklendi:", unlabeled: "Etiketsiz", dashboard: "Panel", labels: "Etiketler", login: "Giriş Yap", logout: "Çıkış Yap", email: "E-posta", password: "Şifre", restore: "Geri Yükle", deletePerm: "Kalıcı olarak sil", emptyTrash: "Çöpü Boşalt", lastSaved: "Son kaydetme:" }
 };
 
 const themes: Record<ThemeMode, Omit<ThemeContextType, 'accent' | 'mode' | 'setMode' | 'accentKey' | 'setAccentKey' | 'language' | 'setLanguage' | 't'>> = {
@@ -106,6 +108,7 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [tierlists, setTierlists] = useState<TierList[]>([]);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
   const isInitialLoad = useRef(true);
 
   useEffect(() => {
@@ -141,19 +144,45 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const save = async () => {
       setSyncStatus('syncing');
       const { error } = await supabase.from('app_data').update({ notes, labels, tierlists, updated_at: new Date().toISOString() }).eq('id', 1);
-      setSyncStatus(error ? 'error' : 'synced');
+      if (!error) {
+        setSyncStatus('synced');
+        setLastSaved(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}));
+      } else {
+        setSyncStatus('error');
+      }
     };
     const timer = setTimeout(save, 1000);
     return () => clearTimeout(timer);
   }, [notes, labels, tierlists]);
 
   const toggleFilter = (id: string) => setActiveFilters(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
-  return <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus }}>{children}</DataContext.Provider>;
+  return <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus, lastSaved }}>{children}</DataContext.Provider>;
 };
 
 // ==========================================
-// 3. UI COMPONENTS
+// 3. UI COMPONENTS & HELPERS
 // ==========================================
+
+// Custom Markdown Parser (Dependency Free)
+const renderMarkdown = (text: string) => {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return lines.map((line, i) => {
+    let html = line
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/__(.*?)__/g, '<strong>$1</strong>')
+      .replace(/_(.*?)_/g, '<em>$1</em>')
+      .replace(/`([^`]+)`/g, '<code class="bg-black/20 rounded px-1 text-sm font-mono">$1</code>');
+
+    if (line.startsWith('# ')) return <h1 key={i} className="text-3xl font-bold mt-4 mb-2" dangerouslySetInnerHTML={{__html: html.substring(2)}} />;
+    if (line.startsWith('## ')) return <h2 key={i} className="text-2xl font-bold mt-3 mb-2" dangerouslySetInnerHTML={{__html: html.substring(3)}} />;
+    if (line.startsWith('### ')) return <h3 key={i} className="text-xl font-bold mt-2 mb-1" dangerouslySetInnerHTML={{__html: html.substring(4)}} />;
+    if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc marker:text-gray-500" dangerouslySetInnerHTML={{__html: html.substring(2)}} />;
+    
+    return <p key={i} className="min-h-[1.5rem]" dangerouslySetInnerHTML={{__html: html}} />;
+  });
+};
 
 const SyncIndicator = () => {
   const { syncStatus } = useData();
@@ -193,12 +222,18 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, customT
   );
 };
 
-const NoteCard: React.FC<{ note: Note; label: Label; onClick: () => void; onDelete: (e: React.MouseEvent) => void }> = ({ note, label, onClick, onDelete }) => (
-  <div onClick={onClick} className={`${label.color} p-4 rounded-xl shadow-sm flex flex-col min-h-[160px] relative group transition-transform active:scale-95 cursor-pointer hover:scale-[1.02] hover:shadow-md`}>
+const NoteCard: React.FC<{ note: Note; label: Label; onClick: () => void; onDelete: (e: React.MouseEvent) => void; isTrash?: boolean; onRestore?: (e: React.MouseEvent) => void }> = ({ note, label, onClick, onDelete, isTrash, onRestore }) => (
+  <div onClick={onClick} className={`${label.color} p-4 rounded-xl shadow-sm flex flex-col min-h-[160px] relative group transition-transform active:scale-95 cursor-pointer hover:scale-[1.02] hover:shadow-md ${isTrash ? 'opacity-70 grayscale' : ''}`}>
     {label.id !== 'unlabeled' && <div className="flex justify-between items-start mb-2"><span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-white/30 ${label.textColor}`}>{label.name}</span></div>}
     <h3 className={`font-bold text-lg mb-1 ${label.textColor} line-clamp-1`}>{note.title}</h3>
     <p className={`text-sm ${label.textColor} opacity-80 line-clamp-4 flex-grow whitespace-pre-wrap`}>{note.content}</p>
-    <div className="flex justify-between items-center mt-3"><span className={`text-[10px] ${label.textColor} opacity-60`}>{note.date}</span><button onClick={onDelete} className={`p-2 rounded-full hover:bg-black/10 ${label.textColor}`}><Trash2 size={16} /></button></div>
+    <div className="flex justify-between items-center mt-3">
+      <span className={`text-[10px] ${label.textColor} opacity-60`}>{note.date}</span>
+      <div className="flex gap-1">
+        {isTrash && onRestore && <button onClick={onRestore} className={`p-2 rounded-full hover:bg-black/10 ${label.textColor}`}><RefreshCw size={16} /></button>}
+        <button onClick={onDelete} className={`p-2 rounded-full hover:bg-black/10 ${label.textColor}`}><Trash2 size={16} /></button>
+      </div>
+    </div>
   </div>
 );
 
@@ -274,26 +309,15 @@ const AuthScreen = () => {
     <div className={`min-h-screen flex items-center justify-center ${bgMain} p-4`}>
       <div className={`w-full max-w-md p-8 rounded-2xl ${bgCard} border ${border} shadow-2xl`}>
         <div className="flex flex-col items-center mb-8">
-          <div className={`w-16 h-16 bg-gradient-to-br ${accent.gradient} rounded-2xl flex items-center justify-center text-white shadow-lg mb-4`}>
-            <Lock size={32} />
-          </div>
+          <div className={`w-16 h-16 bg-gradient-to-br ${accent.gradient} rounded-2xl flex items-center justify-center text-white shadow-lg mb-4`}><Lock size={32} /></div>
           <h1 className={`text-2xl font-bold ${textMain}`}>{t('appTitle')}</h1>
           <p className={`text-sm ${textSec} mt-1`}>Secure Login</p>
         </div>
-        
         <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className={`block text-xs font-bold mb-1 ${textSec}`}>{t('email')}</label>
-            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div>
-            <label className={`block text-xs font-bold mb-1 ${textSec}`}>{t('password')}</label>
-            <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-          </div>
+          <div><label className={`block text-xs font-bold mb-1 ${textSec}`}>{t('email')}</label><Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+          <div><label className={`block text-xs font-bold mb-1 ${textSec}`}>{t('password')}</label><Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} /></div>
           {error && <p className="text-red-500 text-xs text-center">{error}</p>}
-          <Button type="submit" disabled={loading} className="w-full mt-4 py-3">
-            {loading ? '...' : t('login')}
-          </Button>
+          <Button type="submit" disabled={loading} className="w-full mt-4 py-3">{loading ? '...' : t('login')}</Button>
         </form>
       </div>
     </div>
@@ -306,16 +330,20 @@ const AuthScreen = () => {
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
   const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData();
-  const [currentTab, setCurrentTab] = useState<'notes' | 'tierlist'>('notes');
+  const [currentTab, setCurrentTab] = useState<'notes' | 'tierlist' | 'trash'>('notes');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [currentNote, setCurrentNote] = useState<Partial<Note>>({});
+  const [isPreview, setIsPreview] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [isTierListModalOpen, setIsTierListModalOpen] = useState(false);
   const [activeListId, setActiveListId] = useState<number | null>(null);
   const [newTierListTitle, setNewTierListTitle] = useState('');
 
-  const filteredNotes = activeFilters.length === 0 ? notes : notes.filter(n => activeFilters.includes(n.labelId || 'unlabeled'));
+  const activeNotes = notes.filter(n => !n.isDeleted);
+  const trashNotes = notes.filter(n => n.isDeleted);
+  const filteredNotes = activeFilters.length === 0 ? activeNotes : activeNotes.filter(n => activeFilters.includes(n.labelId || 'unlabeled'));
+  
   const activeLabel = labels.find(l => l.id === currentNote.labelId) || { color: 'bg-gray-700', textColor: 'text-gray-200' };
   const activeList = tierlists.find(l => l.id === activeListId);
 
@@ -329,21 +357,14 @@ const MobileLayout = () => {
   if (activeListId !== null && activeList) {
     return (
       <div className={`min-h-screen ${bgMain} ${textMain} flex flex-col`}>
-        <header className={`p-4 border-b ${border} flex justify-between items-center`}>
-          <button onClick={() => setActiveListId(null)} className={textSec}><Menu size={24}/></button>
-          <h1 className="font-bold">{activeList.title}</h1>
-          <SyncIndicator />
-        </header>
+        <header className={`p-4 border-b ${border} flex justify-between items-center`}><button onClick={() => setActiveListId(null)} className={textSec}><Menu size={24}/></button><h1 className="font-bold">{activeList.title}</h1><SyncIndicator /></header>
         <div className="p-4 space-y-2">
           {['S','A','B','C','D'].map(tier => (
             <div key={tier} className={`flex min-h-[80px] ${bgCard} rounded-lg border ${border} overflow-hidden`}>
               <div className="bg-red-500 w-12 flex items-center justify-center font-black text-black/50">{tier}</div>
               <div className="flex-1 p-2 flex flex-wrap gap-2">
                 {activeList.items.filter(i => i.tier === tier).map(item => (
-                  <div key={item.id} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border}`}>
-                    {item.name}
-                    <button onClick={() => setTierlists(prev => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))}><X size={12}/></button>
-                  </div>
+                  <div key={item.id} className={`${bgInput} px-2 py-1 rounded text-sm flex items-center gap-1 border ${border}`}>{item.name}<button onClick={() => setTierlists(prev => prev.map(l => l.id === activeListId ? { ...l, items: l.items.filter(i => i.id !== item.id) } : l))}><X size={12}/></button></div>
                 ))}
               </div>
             </div>
@@ -368,29 +389,47 @@ const MobileLayout = () => {
               {labels.map(l => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`h-9 px-3 rounded-lg border whitespace-nowrap ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor : 'border-transparent'}`}>{l.name}</button>)}
             </div>
             <div className="grid grid-cols-2 gap-4">
-              {filteredNotes.map(n => <NoteCard key={n.id} note={n} label={labels.find(l => l.id === n.labelId) || { id: 'u', name: t('unlabeled'), color: 'bg-gray-700', textColor: 'text-gray-200'}} onClick={() => { setCurrentNote(n); setIsNoteModalOpen(true); }} onDelete={(e) => { e.stopPropagation(); setNotes(prev => prev.filter(x => x.id !== n.id)); }} />)}
+              {filteredNotes.map(n => <NoteCard key={n.id} note={n} label={labels.find(l => l.id === n.labelId) || { id: 'u', name: t('unlabeled'), color: 'bg-gray-700', textColor: 'text-gray-200'}} onClick={() => { setCurrentNote(n); setIsPreview(true); setIsNoteModalOpen(true); }} onDelete={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === n.id ? {...x, isDeleted: true} : x)); }} />)}
             </div>
-            <button onClick={() => { setCurrentNote({}); setIsNoteModalOpen(true); }} className={`fixed bottom-24 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-lg flex items-center justify-center`}><Plus size={28}/></button>
+            <button onClick={() => { setCurrentNote({}); setIsPreview(false); setIsNoteModalOpen(true); }} className={`fixed bottom-24 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-lg flex items-center justify-center`}><Plus size={28}/></button>
           </div>
-        ) : (
+        ) : currentTab === 'tierlist' ? (
           <div className="space-y-4">
             <Button onClick={() => setIsTierListModalOpen(true)} className="w-full"><Plus size={18}/> {t('newTierList')}</Button>
             {tierlists.map(t => <div key={t.id} onClick={() => setActiveListId(t.id)} className={`${bgCard} p-4 rounded-xl border ${border} flex justify-between items-center`}><span className="font-bold">{t.title}</span><button onClick={(e) => { e.stopPropagation(); setTierlists(prev => prev.filter(l => l.id !== t.id)); }} className="text-red-400"><Trash2 size={18}/></button></div>)}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex justify-between items-center px-2">
+              <span className="font-bold text-lg">{t('navTrash')} ({trashNotes.length})</span>
+              <button onClick={() => setNotes(prev => prev.filter(n => !n.isDeleted))} className="text-red-400 text-sm hover:underline">{t('emptyTrash')}</button>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {trashNotes.map(n => <NoteCard key={n.id} isTrash note={n} label={labels.find(l => l.id === n.labelId) || { id: 'u', name: t('unlabeled'), color: 'bg-gray-700', textColor: 'text-gray-200'}} onClick={() => {}} onRestore={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === n.id ? {...x, isDeleted: false} : x)); }} onDelete={(e) => { e.stopPropagation(); setNotes(prev => prev.filter(x => x.id !== n.id)); }} />)}
+            </div>
           </div>
         )}
       </main>
       <nav className={`fixed bottom-0 left-0 right-0 ${bgMain} border-t ${border} flex justify-around p-4`}>
         <button onClick={() => setCurrentTab('notes')} className={currentTab === 'notes' ? accent.text : textSec}><StickyNote/></button>
         <button onClick={() => setCurrentTab('tierlist')} className={currentTab === 'tierlist' ? accent.text : textSec}><List/></button>
+        <button onClick={() => setCurrentTab('trash')} className={currentTab === 'trash' ? accent.text : textSec}><Archive/></button>
       </nav>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} labels={labels} onAdd={(n, c) => setLabels([...labels, {id:Date.now().toString(), name:n, color:c.bg, textColor:c.text}])} onUpdate={(id, n, c) => setLabels(prev => prev.map(l => l.id === id ? {...l, name:n, color:c.bg, textColor:c.text} : l))} onDelete={id => setLabels(prev => prev.filter(l => l.id !== id))} />
-      <Modal isOpen={isNoteModalOpen} onClose={() => setIsNoteModalOpen(false)} title="Note" customTheme={{ bg: activeLabel.color, text: activeLabel.textColor }}>
+      <Modal isOpen={isNoteModalOpen} onClose={() => setIsNoteModalOpen(false)} title={currentNote.id ? t('editNote') : t('newNote')} customTheme={{ bg: activeLabel.color, text: activeLabel.textColor }}>
         <div className="space-y-4">
-          <input value={currentNote.title || ''} onChange={e => setCurrentNote({...currentNote, title: e.target.value})} className="w-full bg-white/20 rounded-lg p-3 font-bold outline-none" placeholder="Title" />
-          <textarea value={currentNote.content || ''} onChange={e => setCurrentNote({...currentNote, content: e.target.value})} className="w-full bg-white/20 rounded-lg p-3 h-64 resize-none outline-none" placeholder="Content" />
-          <div className="flex gap-2 flex-wrap">{labels.map(l => <button key={l.id} onClick={() => setCurrentNote({...currentNote, labelId: l.id})} className={`px-2 py-1 rounded-full text-xs ${l.color} ${l.textColor}`}>{l.name}</button>)}</div>
-          <Button onClick={saveNote} className="w-full bg-white/20 text-black">Save</Button>
+          <div className="flex justify-between items-center">
+             <input value={currentNote.title || ''} onChange={e => setCurrentNote({...currentNote, title: e.target.value})} className="flex-1 bg-transparent rounded-lg p-2 font-bold outline-none placeholder:text-black/50" placeholder="Title" />
+             <button onClick={() => setIsPreview(!isPreview)} className="p-2 bg-black/10 rounded-lg">{isPreview ? <Edit3 size={18}/> : <Eye size={18}/>}</button>
+          </div>
+          {isPreview ? (
+             <div className="w-full bg-black/5 rounded-lg p-3 min-h-[16rem] overflow-y-auto prose prose-sm prose-p:leading-snug">{renderMarkdown(currentNote.content || '*Kein Inhalt*')}</div>
+          ) : (
+             <textarea value={currentNote.content || ''} onChange={e => setCurrentNote({...currentNote, content: e.target.value})} className="w-full bg-black/5 rounded-lg p-3 h-64 resize-none outline-none placeholder:text-black/50 font-mono text-sm" placeholder="Content (Markdown)" />
+          )}
+          <div className="flex gap-2 flex-wrap">{labels.map(l => <button key={l.id} onClick={() => setCurrentNote({...currentNote, labelId: l.id})} className={`px-2 py-1 rounded-full text-xs ${l.color} ${l.textColor} ${currentNote.labelId === l.id ? 'ring-2 ring-black/30' : ''}`}>{l.name}</button>)}</div>
+          <Button onClick={saveNote} className="w-full bg-white/20 text-black shadow-none border border-black/10">Save</Button>
         </div>
       </Modal>
       <Modal isOpen={isTierListModalOpen} onClose={() => setIsTierListModalOpen(false)} title="New List"><div className="space-y-4"><Input value={newTierListTitle} onChange={e => setNewTierListTitle(e.target.value)} /><Button onClick={() => { if(!newTierListTitle.trim()) return; setTierlists([{id:Date.now(), title:newTierListTitle, items:[]}, ...tierlists]); setIsTierListModalOpen(false); }} className="w-full">Create</Button></div></Modal>
@@ -400,8 +439,8 @@ const MobileLayout = () => {
 
 const DesktopLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput } = useTheme();
-  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData();
-  const [currentTab, setCurrentTab] = useState<'notes' | 'tiers'>('notes');
+  const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists, lastSaved } = useData();
+  const [currentTab, setCurrentTab] = useState<'notes' | 'tiers' | 'trash'>('notes');
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [activeListId, setActiveListId] = useState<number | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -409,40 +448,107 @@ const DesktopLayout = () => {
   const [search, setSearch] = useState('');
   const [addingToTier, setAddingToTier] = useState<string | null>(null);
   const [newTierItemName, setNewTierItemName] = useState('');
+  const [isPreview, setIsPreview] = useState(false);
 
+  const activeNotes = notes.filter(n => !n.isDeleted);
+  const trashNotes = notes.filter(n => n.isDeleted);
   const selectedNote = notes.find(n => n.id === selectedNoteId);
   const activeList = tierlists.find(l => l.id === activeListId);
-  const filteredNotes = notes.filter(n => (activeFilters.length === 0 || activeFilters.includes(n.labelId || 'unlabeled')) && (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase())));
+  
+  const displayNotes = currentTab === 'trash' ? trashNotes : activeNotes;
+  const filteredNotes = displayNotes.filter(n => (activeFilters.length === 0 || activeFilters.includes(n.labelId || 'unlabeled')) && (n.title.toLowerCase().includes(search.toLowerCase()) || n.content.toLowerCase().includes(search.toLowerCase())));
+
+  // NEU: Keyboard Shortcuts (Ohne Sicherheits-Check, wie gewünscht)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' && selectedNoteId !== null && currentTab === 'notes') {
+        setNotes(prev => prev.map(n => n.id === selectedNoteId ? { ...n, isDeleted: true } : n));
+        setSelectedNoteId(null);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n' && currentTab === 'notes') {
+        e.preventDefault(); 
+        const id = Date.now();
+        setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...prev]);
+        setSelectedNoteId(id);
+        setIsPreview(false);
+      }
+      if (e.key === 'Escape' && selectedNoteId !== null) {
+        setSelectedNoteId(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedNoteId, setNotes, currentTab]);
 
   return (
     <div className={`min-h-screen flex ${bgMain} ${textMain} font-sans overflow-hidden`}>
       <aside className={`w-64 border-r ${border} flex flex-col ${bgCard}`}>
         <div className="p-6 flex items-center justify-between"><div className="font-bold flex items-center gap-3"><div className={`w-10 h-10 bg-gradient-to-br ${accent.gradient} rounded-xl flex items-center justify-center text-white shadow-lg`}>LB</div>LifeBase</div><SyncIndicator /></div>
         <nav className="flex-1 px-3 space-y-1">
-          <button onClick={() => setCurrentTab('notes')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg ${currentTab === 'notes' ? accent.lightBg + ' ' + accent.text : textSec}`}>{t('navNotes')}</button>
-          <button onClick={() => setCurrentTab('tiers')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg ${currentTab === 'tiers' ? accent.lightBg + ' ' + accent.text : textSec}`}>{t('navTiers')}</button>
-          <div className="pt-4 px-3 text-xs font-bold uppercase opacity-40 flex justify-between">Labels<button onClick={() => setIsLabelManagerOpen(true)}><Settings size={12}/></button></div>
-          {labels.map(l => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor : textSec}`}><div className={`w-2 h-2 rounded-full ${l.color}`}/>{l.name}</button>)}
+          <button onClick={() => { setCurrentTab('notes'); setSelectedNoteId(null); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg ${currentTab === 'notes' ? accent.lightBg + ' ' + accent.text : textSec}`}>{t('navNotes')}</button>
+          <button onClick={() => { setCurrentTab('tiers'); setSelectedNoteId(null); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg ${currentTab === 'tiers' ? accent.lightBg + ' ' + accent.text : textSec}`}>{t('navTiers')}</button>
+          <button onClick={() => { setCurrentTab('trash'); setSelectedNoteId(null); }} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg mt-2 ${currentTab === 'trash' ? 'bg-red-500/10 text-red-400' : textSec}`}><Archive size={18}/> {t('navTrash')} ({trashNotes.length})</button>
+          
+          {currentTab === 'notes' && (
+            <div className="pt-4 px-3 text-xs font-bold uppercase opacity-40 flex justify-between mt-4">Labels<button onClick={() => setIsLabelManagerOpen(true)}><Settings size={12}/></button></div>
+          )}
+          {currentTab === 'notes' && labels.map(l => <button key={l.id} onClick={() => toggleFilter(l.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${activeFilters.includes(l.id) ? l.color + ' ' + l.textColor : textSec}`}><div className={`w-2 h-2 rounded-full ${l.color}`}/>{l.name}</button>)}
         </nav>
         <div className="p-4"><button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${textSec}`}><Settings size={18}/>{t('settings')}</button></div>
       </aside>
+
       <div className={`w-80 border-r ${border} flex flex-col bg-opacity-50`}>
         <div className={`p-4 border-b ${border} flex gap-2`}>
           {currentTab === 'notes' ? (
-            <><div className="relative flex-1"><Search size={16} className={`absolute left-3 top-3 ${textSec}`} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className={`w-full ${bgInput} rounded-lg pl-9 pr-3 py-2 text-sm outline-none ${textMain}`} /></div><button onClick={() => { const id = Date.now(); setNotes([{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...notes]); setSelectedNoteId(id); }} className={`p-2 rounded-lg ${accent.primary} text-white`}><Plus size={20}/></button></>
-          ) : <Button onClick={() => { const id = Date.now(); setTierlists([{id, title:'New Ranking', items:[]}, ...tierlists]); setActiveListId(id); }} className="w-full">New Ranking</Button>}
+            <><div className="relative flex-1"><Search size={16} className={`absolute left-3 top-3 ${textSec}`} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search..." className={`w-full ${bgInput} rounded-lg pl-9 pr-3 py-2 text-sm outline-none ${textMain}`} /></div><button onClick={() => { const id = Date.now(); setNotes([{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...notes]); setSelectedNoteId(id); setIsPreview(false); }} className={`p-2 rounded-lg ${accent.primary} text-white`}><Plus size={20}/></button></>
+          ) : currentTab === 'tiers' ? (
+            <Button onClick={() => { const id = Date.now(); setTierlists([{id, title:'New Ranking', items:[]}, ...tierlists]); setActiveListId(id); }} className="w-full">New Ranking</Button>
+          ) : (
+            <Button onClick={() => setNotes(prev => prev.filter(n => !n.isDeleted))} variant="danger" className="w-full text-xs">{t('emptyTrash')}</Button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          {currentTab === 'notes' ? filteredNotes.map(n => { const l = labels.find(lab => lab.id === n.labelId); return <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`p-3 rounded-xl cursor-pointer border ${selectedNoteId === n.id ? 'ring-2 ring-indigo-500' : 'border-transparent'} ${l ? l.color + ' ' + l.textColor : bgCard}`}><h4 className="font-bold truncate">{n.title || 'Untitled'}</h4></div>})
+          {currentTab === 'notes' || currentTab === 'trash' ? filteredNotes.map(n => { const l = labels.find(lab => lab.id === n.labelId); return <div key={n.id} onClick={() => { setSelectedNoteId(n.id); setIsPreview(true); }} className={`p-3 rounded-xl cursor-pointer border ${selectedNoteId === n.id ? 'ring-2 ring-indigo-500' : 'border-transparent'} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-70 grayscale' : ''}`}><h4 className="font-bold truncate">{n.title || 'Untitled'}</h4></div>})
           : tierlists.map(list => <div key={list.id} onClick={() => setActiveListId(list.id)} className={`p-3 rounded-xl cursor-pointer flex justify-between ${activeListId === list.id ? accent.lightBg : bgCard}`}><span className="font-bold">{list.title}</span><button onClick={(e) => { e.stopPropagation(); setTierlists(prev => prev.filter(l => l.id !== list.id)); }} className="text-red-400"><Trash2 size={16}/></button></div>)}
         </div>
       </div>
-      <main className="flex-1 flex flex-col">
-        {currentTab === 'notes' ? (
-          selectedNote ? <div className="flex-1 p-10 max-w-3xl mx-auto w-full space-y-6 overflow-y-auto"><div className="flex gap-2">{labels.map(l => <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId:l.id} : n))} className={`w-6 h-6 rounded-full ${l.color} border-2 ${selectedNote.labelId === l.id ? 'border-white' : 'border-transparent'}`}/>)}<button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId:''} : n))} className="text-xs underline">None</button><button onClick={() => {setNotes(prev => prev.filter(n => n.id !== selectedNoteId)); setSelectedNoteId(null)}} className="ml-auto text-red-400"><Trash2/></button></div><input value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title:e.target.value} : n))} className="text-4xl font-bold bg-transparent outline-none w-full" placeholder="Title..." /><textarea value={selectedNote.content} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content:e.target.value} : n))} className="flex-1 w-full bg-transparent outline-none text-lg resize-none" placeholder="Write..." /></div>
-          : <div className="flex-1 flex items-center justify-center opacity-20"><StickyNote size={100}/></div>
-        ) : activeList ? <div className="flex-1 p-8 overflow-y-auto"><h2 className="text-3xl font-bold mb-6">{activeList.title}</h2><div className="space-y-4">{['S','A','B','C','D'].map(tier => <div key={tier} className={`flex min-h-[100px] ${bgCard} rounded-xl border ${border} overflow-hidden`}><div className="bg-red-500 w-24 flex flex-col items-center justify-center"><span className="text-2xl font-black text-black/50">{tier}</span><button onClick={() => setAddingToTier(tier)} className="bg-black/20 text-white p-1 rounded mt-2"><Plus size={16}/></button></div><div className="flex-1 p-4 flex flex-wrap gap-3">{activeList.items.filter(i => i.tier === tier).map(item => <div key={item.id} className={`${bgInput} px-4 py-2 rounded-lg border ${border} flex items-center gap-2`}>{item.name}<button onClick={() => setTierlists(prev => prev.map(l => l.id === activeListId ? {...l, items:l.items.filter(it => it.id !== item.id)} : l))} className="text-red-400"><X size={14}/></button></div>)}</div></div>)}</div><Modal isOpen={!!addingToTier} onClose={() => setAddingToTier(null)} title="Add Item"><div className="space-y-4"><Input value={newTierItemName} onChange={e => setNewTierItemName(e.target.value)} autoFocus /><Button onClick={() => { if(!newTierItemName.trim() || !addingToTier) return; setTierlists(prev => prev.map(l => l.id === activeListId ? {...l, items:[...l.items, {id:Date.now(), name:newTierItemName, tier:addingToTier}]} : l)); setNewTierItemName(''); setAddingToTier(null); }} className="w-full">Add</Button></div></Modal></div>
-        : <div className="flex-1 flex items-center justify-center opacity-30"><List size={64}/></div>}
+
+      <main className="flex-1 flex flex-col relative">
+        {currentTab === 'notes' || currentTab === 'trash' ? (
+          selectedNote ? (
+            <div className="flex-1 p-10 max-w-3xl mx-auto w-full space-y-6 overflow-y-auto pb-20">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex gap-2">
+                  <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId:''} : n))} className={`px-2 py-1 rounded text-xs border ${!selectedNote.labelId ? 'bg-white/10' : 'border-transparent opacity-50'}`}>No Label</button>
+                  {labels.map(l => <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId:l.id} : n))} className={`w-6 h-6 rounded-full ${l.color} border-2 ${selectedNote.labelId === l.id ? 'border-white' : 'border-transparent opacity-50'}`}/>)}
+                </div>
+                <div className="flex gap-2 items-center">
+                  {currentTab === 'trash' ? (
+                    <>
+                      <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: false} : n)); setSelectedNoteId(null); }} className="px-3 py-2 bg-green-500/20 text-green-500 rounded-lg text-sm font-bold flex items-center gap-2"><RefreshCw size={16}/> {t('restore')}</button>
+                      <button onClick={() => { setNotes(prev => prev.filter(n => n.id !== selectedNoteId)); setSelectedNoteId(null); }} className="px-3 py-2 bg-red-500/20 text-red-500 rounded-lg text-sm font-bold flex items-center gap-2"><Trash2 size={16}/> {t('deletePerm')}</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => setIsPreview(!isPreview)} className={`p-2 rounded-lg ${isPreview ? bgCard : accent.primary + ' text-white'}`}>{isPreview ? <Edit3 size={20}/> : <Eye size={20}/>}</button>
+                      <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true} : n)); setSelectedNoteId(null); }} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg"><Trash2 size={20}/></button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <input value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title:e.target.value} : n))} disabled={currentTab === 'trash'} className="text-4xl font-bold bg-transparent outline-none w-full" placeholder="Title..." />
+              {isPreview || currentTab === 'trash' ? (
+                <div className={`flex-1 w-full bg-transparent text-lg leading-relaxed ${textSec}`}>{renderMarkdown(selectedNote.content)}</div>
+              ) : (
+                <textarea value={selectedNote.content} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content:e.target.value} : n))} className={`flex-1 w-full bg-transparent outline-none text-lg resize-none font-mono ${textSec}`} placeholder="Content (Markdown supported)..." />
+              )}
+              {/* Auto Save Feedback */}
+              {lastSaved && currentTab === 'notes' && <div className="absolute bottom-4 right-8 text-xs opacity-40 font-mono">{t('lastSaved')} {lastSaved}</div>}
+            </div>
+          ) : <div className="flex-1 flex items-center justify-center opacity-20">{currentTab === 'trash' ? <Archive size={100}/> : <StickyNote size={100}/>}</div>
+        ) : activeList ? (
+          <div className="flex-1 p-8 overflow-y-auto"><h2 className="text-3xl font-bold mb-6">{activeList.title}</h2><div className="space-y-4">{['S','A','B','C','D'].map(tier => <div key={tier} className={`flex min-h-[100px] ${bgCard} rounded-xl border ${border} overflow-hidden`}><div className="bg-red-500 w-24 flex flex-col items-center justify-center"><span className="text-2xl font-black text-black/50">{tier}</span><button onClick={() => setAddingToTier(tier)} className="bg-black/20 text-white p-1 rounded mt-2"><Plus size={16}/></button></div><div className="flex-1 p-4 flex flex-wrap gap-3">{activeList.items.filter(i => i.tier === tier).map(item => <div key={item.id} className={`${bgInput} px-4 py-2 rounded-lg border ${border} flex items-center gap-2`}>{item.name}<button onClick={() => setTierlists(prev => prev.map(l => l.id === activeListId ? {...l, items:l.items.filter(it => it.id !== item.id)} : l))} className="text-red-400"><X size={14}/></button></div>)}</div></div>)}</div><Modal isOpen={!!addingToTier} onClose={() => setAddingToTier(null)} title="Add Item"><div className="space-y-4"><Input value={newTierItemName} onChange={e => setNewTierItemName(e.target.value)} autoFocus /><Button onClick={() => { if(!newTierItemName.trim() || !addingToTier) return; setTierlists(prev => prev.map(l => l.id === activeListId ? {...l, items:[...l.items, {id:Date.now(), name:newTierItemName, tier:addingToTier}]} : l)); setNewTierItemName(''); setAddingToTier(null); }} className="w-full">Add</Button></div></Modal></div>
+        ) : <div className="flex-1 flex items-center justify-center opacity-30"><List size={64}/></div>}
       </main>
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <LabelManager isOpen={isLabelManagerOpen} onClose={() => setIsLabelManagerOpen(false)} labels={labels} onAdd={(n, c) => setLabels([...labels, {id:Date.now().toString(), name:n, color:c.bg, textColor:c.text}])} onUpdate={(id, n, c) => setLabels(prev => prev.map(l => l.id === id ? {...l, name:n, color:c.bg, textColor:c.text} : l))} onDelete={id => setLabels(prev => prev.filter(l => l.id !== id))} />
