@@ -337,6 +337,9 @@ const MainLayout = () => {
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
 
+  const titleRef = useRef<HTMLInputElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+
   const activeNotes = notes.filter(n => !n.isDeleted).sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
   const trashNotes = notes.filter(n => n.isDeleted);
   const selectedNote = notes.find(n => n.id === selectedNoteId);
@@ -357,7 +360,6 @@ const MainLayout = () => {
   const editorSecTextClass = isClassic && activeLabel ? 'opacity-70 text-black/70' : textSec;
   const iconBtnClass = `p-2 rounded-xl transition-colors ${isClassic && activeLabel ? 'bg-black/10 hover:bg-black/20 text-black/70' : 'bg-black/5 dark:bg-white/5 text-gray-500 hover:bg-black/10 dark:hover:bg-white/10'}`;
 
-  // History API for system back gesture
   useEffect(() => {
     const handlePopState = () => {
       if (isManualOpen) setIsManualOpen(false);
@@ -375,7 +377,6 @@ const MainLayout = () => {
     }
   }, [isManualOpen, isSettingsOpen, isLabelManagerOpen, selectedNoteId]);
 
-  // Touch gesture handler
   useEffect(() => {
     let touchStartX = 0;
     const handleTouchStart = (e: TouchEvent) => { touchStartX = e.touches[0].clientX; };
@@ -408,6 +409,7 @@ const MainLayout = () => {
         setNotes(prev => [{id, title:'', content:'', labelId: '', date: new Date().toLocaleDateString()}, ...prev]);
         setSelectedNoteId(id);
         setIsPreview(false);
+        setTimeout(() => titleRef.current?.focus(), 0);
       }
       if (e.key === 'Escape' && selectedNoteId) setSelectedNoteId(null);
     };
@@ -433,6 +435,7 @@ const MainLayout = () => {
     setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString()}, ...prev]); 
     setSelectedNoteId(id); 
     setIsPreview(false);
+    setTimeout(() => titleRef.current?.focus(), 0);
   };
 
   return (
@@ -536,15 +539,32 @@ const MainLayout = () => {
               </div>
             )}
 
-            <input disabled={currentTab === 'trash'} value={selectedNote.title} onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} className={`text-3xl md:text-5xl font-black bg-transparent outline-none placeholder:opacity-30 shrink-0 ${currentTab === 'trash' ? 'opacity-50' : (isClassic && activeLabel ? activeLabel.textColor : textMain)}`} placeholder={t('titlePlaceholder')}/>
+            <input 
+              ref={titleRef}
+              disabled={currentTab === 'trash'} 
+              value={selectedNote.title} 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  contentRef.current?.focus();
+                }
+              }}
+              onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value} : n))} 
+              className={`text-3xl md:text-5xl font-black bg-transparent outline-none placeholder:opacity-30 shrink-0 ${currentTab === 'trash' ? 'opacity-50' : (isClassic && activeLabel ? activeLabel.textColor : textMain)}`} 
+              placeholder={t('titlePlaceholder')}
+            />
             
             {isPreview || currentTab === 'trash' ? (
               <div className={`flex-1 text-base md:text-lg leading-relaxed space-y-2 overflow-y-auto pb-6 ${editorSecTextClass}`}>{renderMarkdown(selectedNote.content)}</div>
             ) : (
-              <textarea value={selectedNote.content} 
+              <textarea 
+                ref={contentRef}
+                value={selectedNote.content} 
                 onKeyDown={(e) => handleSmartEditor(e, selectedNote.content, (val) => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: val} : n)))}
                 onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, content: e.target.value} : n))} 
-                className={`flex-1 bg-transparent outline-none text-base md:text-lg resize-none font-mono placeholder:opacity-30 pb-6 ${editorSecTextClass}`} placeholder={t('contentPlaceholder')}/>
+                className={`flex-1 bg-transparent outline-none text-base md:text-lg resize-none font-mono placeholder:opacity-30 pb-6 ${editorSecTextClass}`} 
+                placeholder={t('contentPlaceholder')}
+              />
             )}
           </div>
         ) : (
