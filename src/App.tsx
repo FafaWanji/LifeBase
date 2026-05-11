@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, createContext, useContext, type Rea
 import { 
   StickyNote, List, Plus, Trash2, X, 
   Settings, Menu, Download, Upload, 
-  Pencil, Tag, Search, Cloud, CloudOff
+  Pencil, Tag, Search, Cloud, CloudOff, LogOut, Lock
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -11,18 +11,12 @@ import { createClient } from '@supabase/supabase-js';
 // ==========================================
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''; 
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-const MY_SECRET = import.meta.env.VITE_MY_SECRET || '';
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  global: {
-    headers: { 'x-my-secret': MY_SECRET }
-  }
-});
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================
 // 2. TYPES & LOGIC
 // ==========================================
-
 type ThemeMode = 'dark' | 'light';
 type AccentKey = 'indigo' | 'rose' | 'emerald' | 'amber' | 'cyan' | 'violet';
 type Language = 'de' | 'en' | 'tr';
@@ -69,9 +63,9 @@ const availableColors = [
 ];
 
 const dictionary: Record<Language, Record<string, string>> = {
-  de: { appTitle: "LifeBase", navNotes: "Notizen", navTiers: "Rankings", myNotes: "Meine Notizen", new: "Neu", noNotes: "Keine Notizen.", editNote: "Bearbeiten", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt...", selectLabel: "Label", edit: "Ändern", noLabel: "Kein Label", save: "Speichern", create: "Erstellen", manageLabels: "Labels", newLabel: "Neu", labelNamePlaceholder: "Name", existingLabels: "Vorhandene", deleteLabelConfirm: "Löschen?", deleteLabelError: "Min. 1 Label!", myTierLists: "Rankings", noTierLists: "Keine Listen.", itemsCount: "Einträge", newTierList: "Neue Liste", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Dazu", settings: "Einstellungen", appearance: "Design", light: "Hell", dark: "Dunkel", language: "Sprache", quickSync: "Sync", copyData: "Kopieren", copied: "Kopiert", pasteFromClipboard: "Einfügen", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud-Synchronisierung ist aktiv.", backup: "Backup", saveToFile: "Speichern", loadFromFile: "Laden", dataInfo: "Daten in Supabase Cloud gespeichert.", overwriteConfirm: "Überschreiben?", importSuccess: "Erfolg!", importError: "Fehler.", autoImportError: "Manuell einfügen:", mergeSuccess: "Neu importiert:", unlabeled: "Labellos", dashboard: "Übersicht", labels: "Labels" },
-  en: { appTitle: "LifeBase", navNotes: "Notes", navTiers: "Rankings", myNotes: "My Notes", new: "New", noNotes: "No notes.", editNote: "Edit", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content...", selectLabel: "Label", edit: "Edit", noLabel: "None", save: "Save", create: "Create", manageLabels: "Labels", newLabel: "New", labelNamePlaceholder: "Name", existingLabels: "Existing", deleteLabelConfirm: "Delete?", deleteLabelError: "Min 1 label!", myTierLists: "Rankings", noTierLists: "No lists.", itemsCount: "items", newTierList: "New List", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Add", settings: "Settings", appearance: "Design", light: "Light", dark: "Dark", language: "Language", quickSync: "Sync", copyData: "Copy", copied: "Copied", pasteFromClipboard: "Paste", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud Sync is active.", backup: "Backup", saveToFile: "Save", loadFromFile: "Load", dataInfo: "Stored in Supabase Cloud.", overwriteConfirm: "Overwrite?", importSuccess: "Success!", importError: "Error.", autoImportError: "Paste manually:", mergeSuccess: "Imported:", unlabeled: "Unlabeled", dashboard: "Dashboard", labels: "Labels" },
-  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTiers: "Sıralama", myNotes: "Notlarım", new: "Yeni", noNotes: "Not yok.", editNote: "Düzenle", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik...", selectLabel: "Etiket", edit: "Düzenle", noLabel: "Yok", save: "Kaydet", create: "Oluştur", manageLabels: "Etiketler", newLabel: "Yeni", labelNamePlaceholder: "İsim", existingLabels: "Mevcut", deleteLabelConfirm: "Sil?", deleteLabelError: "En az 1!", myTierLists: "Listeler", noTierLists: "Liste yok.", itemsCount: "öğe", newTierList: "Yeni Liste", tierListNamePlaceholder: "İsim", tierItemPlaceholder: "İsim", addItem: "Ekle", settings: "Ayarlar", appearance: "Görünüm", light: "Açık", dark: "Koyu", language: "Dil", quickSync: "Senk", copyData: "Kopyala", copied: "Kopyalandı", pasteFromClipboard: "Yapıştır", pastePlaceholder: "Kod...", import: "İçe Aktar", syncInfo: "Bulut senkronizasyonu aktif.", backup: "Yedek", saveToFile: "Kaydet", loadFromFile: "Yükle", dataInfo: "Supabase Cloud'da kayıtlı.", overwriteConfirm: "Üzerine yaz?", importSuccess: "Başarılı!", importError: "Hata.", autoImportError: "Manuel yapıştır:", mergeSuccess: "Eklendi:", unlabeled: "Etiketsiz", dashboard: "Panel", labels: "Etiketler" }
+  de: { appTitle: "LifeBase", navNotes: "Notizen", navTiers: "Rankings", myNotes: "Meine Notizen", new: "Neu", noNotes: "Keine Notizen.", editNote: "Bearbeiten", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt...", selectLabel: "Label", edit: "Ändern", noLabel: "Kein Label", save: "Speichern", create: "Erstellen", manageLabels: "Labels", newLabel: "Neu", labelNamePlaceholder: "Name", existingLabels: "Vorhandene", deleteLabelConfirm: "Löschen?", deleteLabelError: "Min. 1 Label!", myTierLists: "Rankings", noTierLists: "Keine Listen.", itemsCount: "Einträge", newTierList: "Neue Liste", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Dazu", settings: "Einstellungen", appearance: "Design", light: "Hell", dark: "Dunkel", language: "Sprache", quickSync: "Sync", copyData: "Kopieren", copied: "Kopiert", pasteFromClipboard: "Einfügen", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud-Synchronisierung ist aktiv.", backup: "Backup", saveToFile: "Speichern", loadFromFile: "Laden", dataInfo: "Daten in Supabase Cloud gespeichert.", overwriteConfirm: "Überschreiben?", importSuccess: "Erfolg!", importError: "Fehler.", autoImportError: "Manuell einfügen:", mergeSuccess: "Neu importiert:", unlabeled: "Labellos", dashboard: "Übersicht", labels: "Labels", login: "Einloggen", logout: "Abmelden", email: "E-Mail", password: "Passwort" },
+  en: { appTitle: "LifeBase", navNotes: "Notes", navTiers: "Rankings", myNotes: "My Notes", new: "New", noNotes: "No notes.", editNote: "Edit", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content...", selectLabel: "Label", edit: "Edit", noLabel: "None", save: "Save", create: "Create", manageLabels: "Labels", newLabel: "New", labelNamePlaceholder: "Name", existingLabels: "Existing", deleteLabelConfirm: "Delete?", deleteLabelError: "Min 1 label!", myTierLists: "Rankings", noTierLists: "No lists.", itemsCount: "items", newTierList: "New List", tierListNamePlaceholder: "Name", tierItemPlaceholder: "Item", addItem: "Add", settings: "Settings", appearance: "Design", light: "Light", dark: "Dark", language: "Language", quickSync: "Sync", copyData: "Copy", copied: "Copied", pasteFromClipboard: "Paste", pastePlaceholder: "Code...", import: "Import", syncInfo: "Cloud Sync is active.", backup: "Backup", saveToFile: "Save", loadFromFile: "Load", dataInfo: "Stored in Supabase Cloud.", overwriteConfirm: "Overwrite?", importSuccess: "Success!", importError: "Error.", autoImportError: "Paste manually:", mergeSuccess: "Imported:", unlabeled: "Unlabeled", dashboard: "Dashboard", labels: "Labels", login: "Login", logout: "Logout", email: "Email", password: "Password" },
+  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTiers: "Sıralama", myNotes: "Notlarım", new: "Yeni", noNotes: "Not yok.", editNote: "Düzenle", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik...", selectLabel: "Etiket", edit: "Düzenle", noLabel: "Yok", save: "Kaydet", create: "Oluştur", manageLabels: "Etiketler", newLabel: "Yeni", labelNamePlaceholder: "İsim", existingLabels: "Mevcut", deleteLabelConfirm: "Sil?", deleteLabelError: "En az 1!", myTierLists: "Listeler", noTierLists: "Liste yok.", itemsCount: "öğe", newTierList: "Yeni Liste", tierListNamePlaceholder: "İsim", tierItemPlaceholder: "İsim", addItem: "Ekle", settings: "Ayarlar", appearance: "Görünüm", light: "Açık", dark: "Koyu", language: "Dil", quickSync: "Senk", copyData: "Kopyala", copied: "Kopyalandı", pasteFromClipboard: "Yapıştır", pastePlaceholder: "Kod...", import: "İçe Aktar", syncInfo: "Bulut senkronizasyonu aktif.", backup: "Yedek", saveToFile: "Kaydet", loadFromFile: "Yükle", dataInfo: "Supabase Cloud'da kayıtlı.", overwriteConfirm: "Üzerine yaz?", importSuccess: "Başarılı!", importError: "Hata.", autoImportError: "Manuel yapıştır:", mergeSuccess: "Eklendi:", unlabeled: "Etiketsiz", dashboard: "Panel", labels: "Etiketler", login: "Giriş Yap", logout: "Çıkış Yap", email: "E-posta", password: "Şifre" }
 };
 
 const themes: Record<ThemeMode, Omit<ThemeContextType, 'accent' | 'mode' | 'setMode' | 'accentKey' | 'setAccentKey' | 'language' | 'setLanguage' | 't'>> = {
@@ -157,6 +151,10 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   return <DataContext.Provider value={{ notes, setNotes, tierlists, setTierlists, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus }}>{children}</DataContext.Provider>;
 };
 
+// ==========================================
+// 3. UI COMPONENTS
+// ==========================================
+
 const SyncIndicator = () => {
   const { syncStatus } = useData();
   if (syncStatus === 'syncing') return <div className="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full" />;
@@ -226,6 +224,7 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
   const { mode, setMode, bgInput, border, language, setLanguage, t, textSec } = useTheme();
   const { notes, tierlists, labels, setNotes, setTierlists, setLabels } = useData();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const getExportData = () => JSON.stringify({ notes, tierlists, labels, exportDate: new Date().toISOString() });
   const handleImport = (text: string) => {
     try {
@@ -234,18 +233,76 @@ const SettingsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isO
       alert(t('importSuccess')); window.location.reload();
     } catch { alert(t('importError')); }
   };
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t('settings')}>
       <div className="space-y-8">
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('appearance')}</h4><div className={`${bgInput} p-1 rounded-xl flex border ${border}`}><button onClick={() => setMode('light')} className={`flex-1 py-2 rounded-lg text-sm ${mode === 'light' ? 'bg-white text-black' : 'opacity-50'}`}>{t('light')}</button><button onClick={() => setMode('dark')} className={`flex-1 py-2 rounded-lg text-sm ${mode === 'dark' ? 'bg-gray-700 text-white' : 'opacity-50'}`}>{t('dark')}</button></div></div>
-         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <button key={l} onClick={() => setLanguage(l as any)} className={`flex-1 py-2 rounded-xl border-2 ${language === l ? border : 'border-transparent opacity-50'}`}>{l.toUpperCase()}</button>)}</div></div>
+         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('appearance')}</h4><div className="flex gap-2"><Button onClick={() => setMode('light')} variant={mode === 'light' ? 'primary' : 'secondary'} className="flex-1 text-sm">{t('light')}</Button><Button onClick={() => setMode('dark')} variant={mode === 'dark' ? 'primary' : 'secondary'} className="flex-1 text-sm">{t('dark')}</Button></div></div>
+         <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <button key={l} onClick={() => setLanguage(l as any)} className={`flex-1 py-2 rounded-xl border-2 ${language === l ? border : 'border-transparent opacity-50 text-white'}`}>{l.toUpperCase()}</button>)}</div></div>
          <div className="space-y-3"><h4 className={`text-xs font-bold ${textSec}`}>{t('backup')}</h4><div className="space-y-2"><Button onClick={() => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([getExportData()], {type: 'application/json'})); a.download = 'lifebase_backup.json'; a.click(); }} variant="secondary" className="w-full justify-between"><span>{t('saveToFile')}</span><Download size={18}/></Button><input type="file" ref={fileInputRef} onChange={(e) => { const f = e.target.files?.[0]; if(f) { const r = new FileReader(); r.onload = (ev) => handleImport(ev.target?.result as string); r.readAsText(f); }}} className="hidden" /><Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="w-full justify-between"><span>{t('loadFromFile')}</span><Upload size={18}/></Button></div></div>
          <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl flex gap-3 items-start"><Cloud className="text-indigo-500 shrink-0" size={20} /><p className="text-xs text-indigo-600 dark:text-indigo-200/80">{t('dataInfo')}</p></div>
+         <div className="pt-4 border-t border-red-500/20">
+           <Button onClick={handleLogout} variant="danger" className="w-full flex justify-center gap-2 bg-red-500/20"><LogOut size={18} /> {t('logout')}</Button>
+         </div>
       </div>
     </Modal>
   );
 };
 
+// ==========================================
+// 4. AUTH SCREEN
+// ==========================================
+const AuthScreen = () => {
+  const { bgMain, bgCard, textMain, textSec, border, accent, t } = useTheme();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setError(error.message);
+    setLoading(false);
+  };
+
+  return (
+    <div className={`min-h-screen flex items-center justify-center ${bgMain} p-4`}>
+      <div className={`w-full max-w-md p-8 rounded-2xl ${bgCard} border ${border} shadow-2xl`}>
+        <div className="flex flex-col items-center mb-8">
+          <div className={`w-16 h-16 bg-gradient-to-br ${accent.gradient} rounded-2xl flex items-center justify-center text-white shadow-lg mb-4`}>
+            <Lock size={32} />
+          </div>
+          <h1 className={`text-2xl font-bold ${textMain}`}>{t('appTitle')}</h1>
+          <p className={`text-sm ${textSec} mt-1`}>Secure Login</p>
+        </div>
+        
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className={`block text-xs font-bold mb-1 ${textSec}`}>{t('email')}</label>
+            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div>
+            <label className={`block text-xs font-bold mb-1 ${textSec}`}>{t('password')}</label>
+            <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          </div>
+          {error && <p className="text-red-500 text-xs text-center">{error}</p>}
+          <Button type="submit" disabled={loading} className="w-full mt-4 py-3">
+            {loading ? '...' : t('login')}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// 5. LAYOUTS
+// ==========================================
 const MobileLayout = () => {
   const { bgMain, border, textMain, textSec, accent, t, bgInput, bgCard } = useTheme();
   const { notes, setNotes, labels, setLabels, activeFilters, toggleFilter, tierlists, setTierlists } = useData();
@@ -336,7 +393,7 @@ const MobileLayout = () => {
           <Button onClick={saveNote} className="w-full bg-white/20 text-black">Save</Button>
         </div>
       </Modal>
-      <Modal isOpen={isTierListModalOpen} onClose={() => setIsTierListModalOpen(false)} title="New List"><div className="space-y-4"><Input value={newTierListTitle} onChange={e => setNewTierListTitle(e.target.value)} /><Button onClick={() => { setTierlists([{id:Date.now(), title:newTierListTitle, items:[]}, ...tierlists]); setIsTierListModalOpen(false); }} className="w-full">Create</Button></div></Modal>
+      <Modal isOpen={isTierListModalOpen} onClose={() => setIsTierListModalOpen(false)} title="New List"><div className="space-y-4"><Input value={newTierListTitle} onChange={e => setNewTierListTitle(e.target.value)} /><Button onClick={() => { if(!newTierListTitle.trim()) return; setTierlists([{id:Date.now(), title:newTierListTitle, items:[]}, ...tierlists]); setIsTierListModalOpen(false); }} className="w-full">Create</Button></div></Modal>
     </div>
   );
 };
@@ -393,13 +450,38 @@ const DesktopLayout = () => {
   );
 };
 
-const App: React.FC = () => (
-  <ThemeProvider>
-    <DataProvider>
-      <div className="md:hidden h-screen w-screen overflow-hidden"><MobileLayout /></div>
-      <div className="hidden md:block h-screen w-screen overflow-hidden"><DesktopLayout /></div>
-    </DataProvider>
-  </ThemeProvider>
-);
+// ==========================================
+// 6. MAIN APP (WITH AUTH GATE)
+// ==========================================
+const App: React.FC = () => {
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="animate-spin w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" /></div>;
+
+  return (
+    <ThemeProvider>
+      {!session ? (
+        <AuthScreen />
+      ) : (
+        <DataProvider>
+          <div className="md:hidden h-screen w-screen overflow-hidden"><MobileLayout /></div>
+          <div className="hidden md:block h-screen w-screen overflow-hidden"><DesktopLayout /></div>
+        </DataProvider>
+      )}
+    </ThemeProvider>
+  );
+};
 
 export default App;
