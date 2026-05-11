@@ -398,7 +398,7 @@ const MainLayout = () => {
   };
 
   return (
-    // 100dvh statt h-screen verhindert auf dem Handy (Safari/Chrome), dass die Bottom-Nav verdeckt wird
+    // 100dvh verhindert das Abschneiden durch die Safari/Chrome Bottom-Nav auf Handys
     <div className={`h-[100dvh] w-full flex ${bgMain} ${textMain} font-sans overflow-hidden`}>
       
       {/* 1. DESKTOP SIDEBAR (Versteckt auf Mobile) */}
@@ -432,7 +432,7 @@ const MainLayout = () => {
           <button onClick={createNewNote} className={`hidden md:flex p-3 rounded-xl ${accent.primary} text-white shadow-lg`}><Plus size={20}/></button>
         </div>
         
-        {/* Mobile-Only Label Filter (horizontal scrollbar) */}
+        {/* Mobile-Only Label Filter */}
         {currentTab === 'notes' && (
           <div className={`md:hidden flex gap-2 overflow-x-auto p-3 border-b ${border} scrollbar-hide shrink-0`}>
             <button onClick={() => setIsLabelManagerOpen(true)} className={`px-3 py-1.5 rounded-full text-xs font-bold bg-black/5 dark:bg-white/5 ${textSec}`}><Settings size={14}/></button>
@@ -448,13 +448,27 @@ const MainLayout = () => {
           {filteredNotes.map(n => {
             const l = labels.find(lab => lab.id === n.labelId);
             return (
-              <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md scale-[1.02]' : `border-transparent hover:border-black/10 dark:hover:border-white/10`} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
+              <div key={n.id} onClick={() => setSelectedNoteId(n.id)} className={`group p-4 rounded-2xl cursor-pointer border-2 transition-all ${selectedNoteId === n.id ? accent.border + ' shadow-md' : `border-transparent hover:border-black/10 dark:hover:border-white/10`} ${l ? l.color + ' ' + l.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-50 grayscale pointer-events-none' : ''}`}>
                 {l && <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-80">{l.name}</div>}
+                
                 <div className="flex justify-between items-start gap-2">
                    <h4 className="font-bold text-base leading-tight line-clamp-1">{n.title || 'Untitled'}</h4>
-                   {n.isPinned && <Pin size={14} fill="currentColor" className="opacity-50 shrink-0 mt-0.5"/>}
+                   
+                   {/* Pinnen direkt in der Liste (Ausgeblendet im Papierkorb) */}
+                   {currentTab !== 'trash' && (
+                     <button 
+                       onClick={(e) => {
+                         e.stopPropagation(); // Verhindert das Öffnen der Notiz beim Pinnen
+                         setNotes(prev => prev.map(x => x.id === n.id ? {...x, isPinned: !x.isPinned} : x));
+                       }}
+                       className={`p-1.5 -mr-1.5 -mt-1.5 rounded-lg shrink-0 transition-all ${n.isPinned ? 'text-yellow-500 opacity-100' : 'opacity-30 md:opacity-0 md:group-hover:opacity-50 hover:!opacity-100 text-inherit'}`}
+                     >
+                       <Pin size={16} fill={n.isPinned ? "currentColor" : "none"} />
+                     </button>
+                   )}
                 </div>
-                <p className="text-xs opacity-70 mt-2 line-clamp-2 leading-relaxed">{n.content || '...'}</p>
+                
+                <p className="text-xs opacity-70 mt-1 line-clamp-2 leading-relaxed font-mono">{n.content || '...'}</p>
               </div>
             );
           })}
@@ -575,18 +589,25 @@ const MainLayout = () => {
 const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const handleLogin = async (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) alert(error.message);
+    if (error) {
+      alert(error.message);
+      setLoading(false);
+    }
   };
+
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <form onSubmit={handleLogin} className="bg-gray-900 border border-gray-800 p-8 rounded-3xl w-full max-w-sm space-y-4 shadow-2xl">
         <div className="flex flex-col items-center mb-6"><div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(79,70,229,0.3)]"><Lock size={32} color="white"/></div><h1 className="text-3xl font-black tracking-tight text-white">LifeBase</h1></div>
         <input className="w-full bg-black/50 border border-gray-800 rounded-xl p-4 text-white outline-none focus:border-indigo-500 transition-colors" type="email" placeholder="E-Mail" value={email} onChange={e => setEmail(e.target.value)} required />
         <input className="w-full bg-black/50 border border-gray-800 rounded-xl p-4 text-white outline-none focus:border-indigo-500 transition-colors" type="password" placeholder="Passwort" value={password} onChange={e => setPassword(e.target.value)} required />
-        <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all mt-2">Secure Login</button>
+        <button type="submit" disabled={loading} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all disabled:opacity-50 mt-2">{loading ? 'Lade...' : 'Secure Login'}</button>
       </form>
     </div>
   );
@@ -595,12 +616,15 @@ const AuthScreen = () => {
 export default function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session); setLoading(false); });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
     return () => subscription.unsubscribe();
   }, []);
+
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><RefreshCw className="animate-spin text-indigo-500" size={32}/></div>;
+  
   return (
     <ThemeProvider>
       {!session ? <AuthScreen /> : <DataProvider><MainLayout /></DataProvider>}
