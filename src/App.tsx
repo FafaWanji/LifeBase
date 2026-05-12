@@ -365,19 +365,14 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchMove = (e: React.TouchEvent) => {
     const diff = e.touches[0].clientX - touchStartX.current;
-    if (currentTab === 'notes' && diff > 0) setSwipeX(diff);
-    if (currentTab === 'trash' && diff < 0) setSwipeX(diff);
+    if (diff < 0) setSwipeX(diff);
   };
   
   const handleTouchEnd = () => {
-    if (currentTab === 'notes' && swipeX > 100) {
-      setSwipeX(window.innerWidth);
-      setIsAnimatingOut(true);
-      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)), 250);
-    } else if (currentTab === 'trash' && swipeX < -100) {
+    if (swipeX < -100) {
       setSwipeX(-window.innerWidth);
       setIsAnimatingOut(true);
-      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: false} : x)), 250);
+      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: currentTab === 'notes'} : x)), 250);
     } else {
       setSwipeX(0);
     }
@@ -400,10 +395,13 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
 
   return (
     <div className={`relative mb-3 rounded-2xl overflow-hidden shrink-0 transition-all duration-300 ${isAnimatingOut ? 'h-0 opacity-0 mb-0 scale-95' : 'opacity-100'} ${isSelected ? `ring-2 ${accent.ring} shadow-md` : `ring-2 ring-transparent border-2 border-transparent hover:border-black/10 dark:hover:border-white/10`}`}>
-      <div className={`absolute inset-0 flex items-center px-6 text-white ${currentTab === 'notes' ? 'justify-start bg-red-500' : 'justify-end bg-green-500'}`}>
+      
+      {/* Swipe Background */}
+      <div className={`absolute inset-0 flex items-center px-6 text-white justify-end ${currentTab === 'notes' ? 'bg-red-500' : 'bg-green-500'}`}>
         {currentTab === 'notes' ? <Trash2 size={24} /> : <RefreshCw size={24} />}
       </div>
       
+      {/* Foreground Card */}
       <div 
         onClick={() => onClick(note.id)}
         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
@@ -424,6 +422,7 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
           )}
         </div>
 
+        {/* Content Wrapper handling Trash styling */}
         <div className={`relative z-0 ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
            {label && <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-80">{label.name}</div>}
            <div className="flex justify-between items-start gap-2">
@@ -594,7 +593,7 @@ const MainLayout = () => {
         </nav>
       </aside>
 
-      <div className={`${selectedNoteId ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 border-r ${border} bg-transparent h-full`}>
+      <div className={`${selectedNoteId ? 'hidden md:flex' : 'flex'} flex-col w-full md:w-80 border-x md:border-l-0 md:border-r ${border} bg-transparent h-full`}>
         <div className={`p-4 border-b ${border} flex flex-col gap-3`}>
           <div className="flex gap-3 items-center">
             <div className={`md:hidden w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white font-bold shrink-0 shadow-md`}>LB</div>
@@ -633,7 +632,7 @@ const MainLayout = () => {
         </div>
 
         {!selectedNoteId && currentTab === 'notes' && (
-           <button onClick={createNewNote} className={`md:hidden absolute bottom-20 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-2xl flex items-center justify-center z-30 transition-transform active:scale-95`}><Plus size={28}/></button>
+           <button onClick={createNewNote} className={`md:hidden fixed bottom-24 right-6 w-14 h-14 rounded-full ${accent.primary} text-white shadow-2xl flex items-center justify-center z-50 transition-transform active:scale-95`}><Plus size={28}/></button>
         )}
       </div>
 
