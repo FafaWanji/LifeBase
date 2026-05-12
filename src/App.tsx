@@ -59,9 +59,9 @@ const availableColors = [
 ];
 
 const dictionary: Record<Language, Record<string, string>> = {
-  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown)...", save: "Speichern", settings: "Einstellungen", theme: "Farbe", layout: "Design", minimalist: "Minimalist", classic: "Klassisch", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manual: "Anleitung", sortUpdated: "Zuletzt bearbeitet", sortCreated: "Erstellt", sortAZ: "A-Z", words: "Wörter", chars: "Zeichen", min: "Min" },
-  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown)...", save: "Save", settings: "Settings", theme: "Theme", layout: "Design", minimalist: "Minimalist", classic: "Classic", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", lastSaved: "Saved:", unlabeled: "Unlabeled", manual: "Manual", sortUpdated: "Last updated", sortCreated: "Created", sortAZ: "A-Z", words: "Words", chars: "Chars", min: "Min" },
-  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown)...", save: "Kaydet", settings: "Ayarlar", theme: "Tema", layout: "Görünüm", minimalist: "Minimalist", classic: "Klasik", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manual: "Kılavuz", sortUpdated: "Son düzenleme", sortCreated: "Oluşturuldu", sortAZ: "A-Z", words: "Kelime", chars: "Karakter", min: "Dk" }
+  de: { appTitle: "LifeBase", navNotes: "Notizen", navTrash: "Papierkorb", newNote: "Neue Notiz", titlePlaceholder: "Titel...", contentPlaceholder: "Inhalt (Markdown)...", save: "Speichern", settings: "Einstellungen", theme: "Farbe", layout: "Design", minimalist: "Minimalist", classic: "Klassisch", language: "Sprache", login: "Einloggen", logout: "Abmelden", restore: "Wiederherstellen", deletePerm: "Löschen", lastSaved: "Gespeichert:", unlabeled: "Ohne Label", manual: "Anleitung", sortUpdated: "Zuletzt bearbeitet", sortCreated: "Erstellt", sortAZ: "A-Z", words: "Wörter", chars: "Zeichen", min: "Min", accent: "Akzentfarbe" },
+  en: { appTitle: "LifeBase", navNotes: "Notes", navTrash: "Trash", newNote: "New Note", titlePlaceholder: "Title...", contentPlaceholder: "Content (Markdown)...", save: "Save", settings: "Settings", theme: "Theme", layout: "Design", minimalist: "Minimalist", classic: "Classic", language: "Language", login: "Login", logout: "Logout", restore: "Restore", deletePerm: "Delete", lastSaved: "Saved:", unlabeled: "Unlabeled", manual: "Manual", sortUpdated: "Last updated", sortCreated: "Created", sortAZ: "A-Z", words: "Words", chars: "Chars", min: "Min", accent: "Accent Color" },
+  tr: { appTitle: "LifeBase", navNotes: "Notlar", navTrash: "Çöp Kutusu", newNote: "Yeni Not", titlePlaceholder: "Başlık...", contentPlaceholder: "İçerik (Markdown)...", save: "Kaydet", settings: "Ayarlar", theme: "Tema", layout: "Görünüm", minimalist: "Minimalist", classic: "Klasik", language: "Dil", login: "Giriş Yap", logout: "Çıkış Yap", restore: "Geri Yükle", deletePerm: "Sil", lastSaved: "Kaydedildi:", unlabeled: "Etiketsiz", manual: "Kılavuz", sortUpdated: "Son düzenleme", sortCreated: "Oluşturuldu", sortAZ: "A-Z", words: "Kelime", chars: "Karakter", min: "Dk", accent: "Vurgu Rengi" }
 };
 
 const accents: Record<AccentKey, AccentProfile> = {
@@ -379,18 +379,23 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (currentTab === 'trash') return;
     const rect = e.currentTarget.getBoundingClientRect();
     setHoverRatio((e.clientX - rect.left) / rect.width);
   };
 
   let overlayBg = '';
-  if (hoverRatio !== null && currentTab !== 'trash') {
+  if (hoverRatio !== null) {
     const isLeft = hoverRatio < 0.5;
     const intensity = isLeft ? (0.5 - hoverRatio) * 2 : (hoverRatio - 0.5) * 2;
-    overlayBg = isLeft 
-      ? `linear-gradient(to right, rgba(234,179,8,${intensity * 0.25}), transparent)` 
-      : `linear-gradient(to left, rgba(239,68,68,${intensity * 0.25}), transparent)`;
+    if (currentTab === 'notes') {
+      overlayBg = isLeft 
+        ? `linear-gradient(to right, rgba(234,179,8,${intensity * 0.25}), transparent)` 
+        : `linear-gradient(to left, rgba(239,68,68,${intensity * 0.25}), transparent)`;
+    } else {
+      overlayBg = isLeft 
+        ? `transparent` 
+        : `linear-gradient(to left, rgba(34,197,94,${intensity * 0.25}), transparent)`;
+    }
   }
 
   return (
@@ -439,7 +444,7 @@ const DebugConsole = () => {
 
   if (!isOpen) {
     return (
-      <button onClick={() => setIsOpen(true)} className="fixed bottom-20 left-4 md:bottom-4 z-50 p-2 bg-red-500/20 text-red-500 rounded-full hover:bg-red-500/40">
+      <button onClick={() => setIsOpen(true)} className="fixed bottom-20 left-4 md:bottom-4 md:left-4 z-50 p-2 bg-red-500/20 text-red-500 rounded-full hover:bg-red-500/40">
         <Bug size={20} />
       </button>
     );
@@ -465,7 +470,7 @@ const DebugConsole = () => {
 };
 
 const MainLayout = () => {
-  const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput, mode, setMode, designMode, setDesignMode, language, setLanguage } = useTheme();
+  const { bgMain, bgCard, border, textMain, textSec, accent, accentKey, setAccentKey, t, bgInput, mode, setMode, designMode, setDesignMode, language, setLanguage } = useTheme();
   const { notes, setNotes, labels, syncStatus, lastSaved, activeFilters, toggleFilter } = useData();
   
   const [currentTab, setCurrentTab] = useState<'notes' | 'trash'>('notes');
@@ -584,6 +589,7 @@ const MainLayout = () => {
         <nav className="flex-1 px-3 space-y-2 overflow-y-auto scrollbar-hide">
           <button onClick={() => {setCurrentTab('notes'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'notes' ? accent.lightBg + ' ' + accent.text : textSec + ' hover:' + bgMain}`}><StickyNote size={20}/> <span className="font-medium">{t('navNotes')}</span></button>
           <button onClick={() => {setCurrentTab('trash'); setSelectedNoteId(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${currentTab === 'trash' ? 'bg-red-500/10 text-red-500' : textSec + ' hover:' + bgMain}`}><Archive size={20}/> <span className="font-medium">{t('navTrash')}</span></button>
+          <button onClick={() => setIsSettingsOpen(true)} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${textSec} hover:${bgMain}`}><Settings size={20}/> <span className="font-medium">{t('settings')}</span></button>
           {currentTab === 'notes' && (
             <div className="pt-4 border-t border-black/5 dark:border-white/5 mt-4">
               <div className="flex justify-between items-center px-3 mb-2"><span className="text-[10px] font-bold uppercase opacity-40">Labels</span><button onClick={() => setIsLabelManagerOpen(true)}><Settings size={12}/></button></div>
@@ -720,6 +726,14 @@ const MainLayout = () => {
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title={t('settings')}>
         <div className="space-y-8">
            <button onClick={() => {setIsSettingsOpen(false); setIsManualOpen(true);}} className={`w-full flex items-center justify-between p-4 rounded-2xl bg-indigo-500/10 text-indigo-500 font-bold border border-indigo-500/20`}><div className="flex items-center gap-3"><BookOpen size={20}/> {t('manual')}</div><Plus size={16}/></button>
+           <div>
+             <h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('accent')}</h4>
+             <div className="flex flex-wrap gap-2">
+               {(Object.keys(accents) as AccentKey[]).map(k => (
+                 <button key={k} onClick={() => setAccentKey(k)} className={`w-8 h-8 rounded-full ${accents[k].primary} transition-transform ${accentKey === k ? 'ring-2 ring-offset-2 ring-gray-500 scale-110' : 'hover:scale-105'}`} />
+               ))}
+             </div>
+           </div>
            <div><h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('theme')}</h4><div className="flex gap-2"><Button onClick={() => setMode('light')} variant={mode === 'light' ? 'primary' : 'secondary'} className="flex-1">Light</Button><Button onClick={() => setMode('dark')} variant={mode === 'dark' ? 'primary' : 'secondary'} className="flex-1">Dark</Button></div></div>
            <div><h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('layout')}</h4><div className="flex gap-2"><Button onClick={() => setDesignMode('minimalist')} variant={designMode === 'minimalist' ? 'primary' : 'secondary'} className="flex-1">Minimal</Button><Button onClick={() => setDesignMode('classic')} variant={designMode === 'classic' ? 'primary' : 'secondary'} className="flex-1">Classic</Button></div></div>
            <div><h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('language')}</h4><div className="flex gap-2">{['de', 'en', 'tr'].map(l => <Button key={l} onClick={() => setLanguage(l as any)} variant={language === l ? 'primary' : 'secondary'} className="flex-1 uppercase">{l}</Button>)}</div></div>
