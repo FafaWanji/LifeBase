@@ -3,7 +3,7 @@ import {
   StickyNote, Plus, Trash2, X, Settings, 
   Pencil, Tag, Search, Cloud, CloudOff, LogOut, Lock,
   Eye, Edit3, RefreshCw, Archive, Pin, Camera, BookOpen,
-  ChevronLeft, Copy, Check
+  ChevronLeft, Copy, Check, AlertCircle, Bug
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -36,6 +36,7 @@ interface DataContextType {
   toggleFilter: (id: string) => void;
   syncStatus: 'synced' | 'syncing' | 'error';
   lastSaved: string | null;
+  debugLog: any[]; setDebugLog: React.Dispatch<React.SetStateAction<any[]>>;
 }
 
 const defaultLabels: Label[] = [
@@ -103,26 +104,49 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+  const [debugLog, setDebugLog] = useState<any[]>([]);
   const isInitialLoad = useRef(true);
+
+  const addLog = (msg: string, data?: any) => {
+    setDebugLog(prev => [{ time: new Date().toLocaleTimeString(), msg, data }, ...prev].slice(0, 20));
+    console.log(`[LifeBase Debug] ${msg}`, data || '');
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       setSyncStatus('syncing');
+      addLog('Fetching data for user:', session.user.id);
+      
       try {
-        const { data, error } = await supabase.from('app_data').select('*').eq('user_id', session.user.id).maybeSingle();
-        if (error) throw error;
+        const { data, error } = await supabase.from('app_data').select('*').eq('user_id', session.user.id);
         
-        if (data) {
-          setNotes(data.notes || []);
-          setLabels(data.labels || defaultLabels);
+        if (error) {
+          addLog('Fetch Error:', error);
+          throw error;
+        }
+
+        if (data && data.length > 0) {
+          addLog('Data found:', data[0]);
+          setNotes(data[0].notes || []);
+          setLabels(data[0].labels || defaultLabels);
           setSyncStatus('synced');
         } else {
-          const { error: insertErr } = await supabase.from('app_data').insert({ user_id: session.user.id, notes: [], labels: defaultLabels });
-          if (insertErr) throw insertErr;
+          addLog('No data found, attempting initial insert.');
+          const { error: insertErr, data: insertData } = await supabase.from('app_data').insert({ 
+            user_id: session.user.id, 
+            notes: [], 
+            labels: defaultLabels 
+          }).select();
+          
+          if (insertErr) {
+             addLog('Insert failed:', insertErr);
+             throw insertErr;
+          }
+          addLog('Insert successful:', insertData);
           setSyncStatus('synced');
         }
       } catch (err) { 
-        console.error('Fetch error:', err);
+        addLog('Critical Catch Error:', err);
         setSyncStatus('error'); 
       }
       isInitialLoad.current = false;
@@ -133,6 +157,7 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
   useEffect(() => {
     const channel = supabase.channel('db-sync').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data', filter: `user_id=eq.${session.user.id}` }, (payload: any) => {
       if (payload.new) {
+        addLog('Received sync payload:', payload.new);
         setNotes(payload.new.notes);
         setLabels(payload.new.labels);
       }
@@ -144,6 +169,8 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
     if (isInitialLoad.current) return;
     const save = async () => {
       setSyncStatus('syncing');
+      addLog('Saving data...', { noteCount: notes.length, labelCount: labels.length });
+      
       const { error } = await supabase.from('app_data').upsert({ 
         user_id: session.user.id, 
         notes, 
@@ -152,19 +179,21 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
       }, { onConflict: 'user_id' });
       
       if (!error) {
+        addLog('Save successful');
         setSyncStatus('synced');
         setLastSaved(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
       } else {
-        console.error('Save error:', error);
+        addLog('Save Error:', error);
         setSyncStatus('error');
       }
     };
-    const timer = setTimeout(save, 1000);
+    
+    const timer = setTimeout(save, 1500);
     return () => clearTimeout(timer);
   }, [notes, labels, session.user.id]);
 
   const toggleFilter = (id: string) => setActiveFilters(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
-  return <DataContext.Provider value={{ notes, setNotes, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus, lastSaved }}>{children}</DataContext.Provider>;
+  return <DataContext.Provider value={{ notes, setNotes, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus, lastSaved, debugLog, setDebugLog }}>{children}</DataContext.Provider>;
 };
 
 const renderMarkdown = (text: string) => {
@@ -403,6 +432,38 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   );
 };
 
+const DebugConsole = () => {
+  const { debugLog } = useData();
+  const [isOpen, setIsOpen] = useState(false);
+  const { bgCard, textMain, border } = useTheme();
+
+  if (!isOpen) {
+    return (
+      <button onClick={() => setIsOpen(true)} className="fixed bottom-20 left-4 md:bottom-4 z-50 p-2 bg-red-500/20 text-red-500 rounded-full hover:bg-red-500/40">
+        <Bug size={20} />
+      </button>
+    );
+  }
+
+  return (
+    <div className={`fixed bottom-20 left-4 md:bottom-4 md:left-4 z-50 w-80 max-h-96 flex flex-col ${bgCard} border ${border} rounded-xl shadow-2xl overflow-hidden`}>
+      <div className="flex justify-between items-center p-2 border-b border-red-500/20 bg-red-500/10">
+        <span className={`text-xs font-bold text-red-500 flex items-center gap-2`}><AlertCircle size={14}/> DB Diagnostik</span>
+        <button onClick={() => setIsOpen(false)} className="text-red-500"><X size={16}/></button>
+      </div>
+      <div className={`flex-1 overflow-y-auto p-2 space-y-2 text-[10px] font-mono ${textMain} bg-black/5 dark:bg-white/5`}>
+        {debugLog.length === 0 ? <p className="opacity-50">Warte auf Datenbank...</p> : null}
+        {debugLog.map((log, i) => (
+          <div key={i} className="border-b border-black/5 dark:border-white/5 pb-2">
+            <span className="opacity-50">[{log.time}]</span> <span className="font-bold">{log.msg}</span>
+            {log.data && <pre className="mt-1 overflow-x-auto opacity-70 bg-black/10 dark:bg-white/10 p-1 rounded">{JSON.stringify(log.data, null, 2)}</pre>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const MainLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, t, bgInput, mode, setMode, designMode, setDesignMode, language, setLanguage } = useTheme();
   const { notes, setNotes, labels, syncStatus, lastSaved, activeFilters, toggleFilter } = useData();
@@ -514,6 +575,7 @@ const MainLayout = () => {
 
   return (
     <div className={`h-[100dvh] w-full flex ${bgMain} ${textMain} font-sans overflow-hidden overscroll-none`}>
+      <DebugConsole />
       <aside className={`hidden md:flex w-64 border-r ${border} flex-col ${bgCard}`}>
         <div className="p-6 font-bold text-xl flex items-center gap-2">
           <div className={`w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white shadow-lg`}>LB</div>
