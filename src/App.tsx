@@ -365,14 +365,23 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchMove = (e: React.TouchEvent) => {
     const diff = e.touches[0].clientX - touchStartX.current;
-    if (diff < 0) setSwipeX(diff);
+    if (currentTab === 'notes' && diff > 0) setSwipeX(diff);
+    if (currentTab === 'trash') setSwipeX(diff);
   };
   
   const handleTouchEnd = () => {
-    if (swipeX < -100) {
+    if (currentTab === 'notes' && swipeX > 100) {
+      setSwipeX(window.innerWidth);
+      setIsAnimatingOut(true);
+      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)), 250);
+    } else if (currentTab === 'trash' && swipeX < -100) {
       setSwipeX(-window.innerWidth);
       setIsAnimatingOut(true);
-      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: currentTab === 'notes'} : x)), 250);
+      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: false} : x)), 250);
+    } else if (currentTab === 'trash' && swipeX > 100) {
+      setSwipeX(window.innerWidth);
+      setIsAnimatingOut(true);
+      setTimeout(() => setNotes(prev => prev.filter(x => x.id !== note.id)), 250);
     } else {
       setSwipeX(0);
     }
@@ -388,20 +397,18 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   if (hoverRatio !== null && currentTab !== 'trash') {
     const isLeft = hoverRatio < 0.5;
     const intensity = isLeft ? (0.5 - hoverRatio) * 2 : (hoverRatio - 0.5) * 2;
-    overlayBg = isLeft 
-      ? `linear-gradient(to right, rgba(234,179,8,${intensity * 0.25}), transparent)` 
-      : `linear-gradient(to left, rgba(239,68,68,${intensity * 0.25}), transparent)`;
+    if (currentTab === 'notes') {
+      overlayBg = isLeft ? `linear-gradient(to right, rgba(239,68,68,${intensity * 0.25}), transparent)` : '';
+    }
   }
 
   return (
     <div className={`relative mb-3 rounded-2xl overflow-hidden shrink-0 transition-all duration-300 ${isAnimatingOut ? 'h-0 opacity-0 mb-0 scale-95' : 'opacity-100'} ${isSelected ? `ring-2 ${accent.ring} shadow-md` : `ring-2 ring-transparent border-2 border-transparent hover:border-black/10 dark:hover:border-white/10`}`}>
       
-      {/* Swipe Background */}
-      <div className={`absolute inset-0 flex items-center px-6 text-white justify-end ${currentTab === 'notes' ? 'bg-red-500' : 'bg-green-500'}`}>
-        {currentTab === 'notes' ? <Trash2 size={24} /> : <RefreshCw size={24} />}
+      <div className={`absolute inset-0 flex items-center px-6 text-white ${swipeX > 0 ? 'justify-start bg-red-500' : 'justify-end bg-green-500'}`}>
+        {swipeX > 0 ? <Trash2 size={24} /> : <RefreshCw size={24} />}
       </div>
       
-      {/* Foreground Card */}
       <div 
         onClick={() => onClick(note.id)}
         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
@@ -413,6 +420,7 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
         
         <div className="absolute inset-y-0 left-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex z-10">
           {currentTab === 'notes' && <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isPinned: !x.isPinned, updatedAt: Date.now()} : x)); }} className={`p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 ${note.isPinned ? 'text-yellow-600' : 'hover:text-yellow-600'}`}><Pin size={16} fill={note.isPinned ? "currentColor" : "none"} /></button>}
+          {currentTab === 'trash' && <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.filter(x => x.id !== note.id)); }} className="p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 hover:text-red-600"><Trash2 size={16} /></button>}
         </div>
         <div className="absolute inset-y-0 right-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex z-10">
           {currentTab === 'notes' ? (
@@ -422,7 +430,6 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
           )}
         </div>
 
-        {/* Content Wrapper handling Trash styling */}
         <div className={`relative z-0 ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
            {label && <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-80">{label.name}</div>}
            <div className="flex justify-between items-start gap-2">
@@ -653,7 +660,10 @@ const MainLayout = () => {
                    {lastSaved}
                 </div>
                 {currentTab === 'trash' ? (
-                  <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: false, updatedAt: Date.now()} : n)); setSelectedNoteId(null); }} className="bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold shadow-md">Restore</button>
+                  <div className="flex gap-2">
+                    <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: false, updatedAt: Date.now()} : n)); setSelectedNoteId(null); }} className="bg-green-500 text-white px-3 py-1.5 rounded-lg font-bold shadow-md">Restore</button>
+                    <button onClick={() => { setNotes(prev => prev.filter(n => n.id !== selectedNoteId)); setSelectedNoteId(null); }} className={`p-2 rounded-xl text-red-500 ${isClassic && activeLabel ? 'hover:bg-black/10' : 'hover:bg-red-500/10'}`}><Trash2 size={20}/></button>
+                  </div>
                 ) : (
                   <button onClick={() => { setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, isDeleted: true, updatedAt: Date.now()} : n)); setSelectedNoteId(null); }} className={`p-2 rounded-xl text-red-500 ${isClassic && activeLabel ? 'hover:bg-black/10' : 'hover:bg-red-500/10'}`}><Trash2 size={20}/></button>
                 )}
