@@ -118,17 +118,17 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
       addLog('Fetching data for user:', session.user.id);
       
       try {
-        const { data, error } = await supabase.from('app_data').select('*').eq('user_id', session.user.id);
+        const { data, error } = await supabase.from('app_data').select('*').eq('user_id', session.user.id).maybeSingle();
         
         if (error) {
           addLog('Fetch Error:', error);
           throw error;
         }
 
-        if (data && data.length > 0) {
-          addLog('Data found:', data[0]);
-          setNotes(data[0].notes || []);
-          setLabels(data[0].labels || defaultLabels);
+        if (data) {
+          addLog('Data found:', data);
+          setNotes(data.notes || []);
+          setLabels(data.labels || defaultLabels);
           setSyncStatus('synced');
         } else {
           addLog('No data found, attempting initial insert.');
@@ -365,42 +365,42 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchMove = (e: React.TouchEvent) => {
     const diff = e.touches[0].clientX - touchStartX.current;
-    if (diff < 0) setSwipeX(diff);
+    if (currentTab === 'notes' && diff > 0) setSwipeX(diff);
+    if (currentTab === 'trash' && diff < 0) setSwipeX(diff);
   };
   
   const handleTouchEnd = () => {
-    if (swipeX < -100) {
+    if (currentTab === 'notes' && swipeX > 100) {
+      setSwipeX(window.innerWidth);
+      setIsAnimatingOut(true);
+      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)), 250);
+    } else if (currentTab === 'trash' && swipeX < -100) {
       setSwipeX(-window.innerWidth);
       setIsAnimatingOut(true);
-      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: currentTab === 'notes'} : x)), 250);
+      setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: false} : x)), 250);
     } else {
       setSwipeX(0);
     }
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (currentTab === 'trash') return;
     const rect = e.currentTarget.getBoundingClientRect();
     setHoverRatio((e.clientX - rect.left) / rect.width);
   };
 
   let overlayBg = '';
-  if (hoverRatio !== null) {
+  if (hoverRatio !== null && currentTab !== 'trash') {
     const isLeft = hoverRatio < 0.5;
     const intensity = isLeft ? (0.5 - hoverRatio) * 2 : (hoverRatio - 0.5) * 2;
-    if (currentTab === 'notes') {
-      overlayBg = isLeft 
-        ? `linear-gradient(to right, rgba(234,179,8,${intensity * 0.25}), transparent)` 
-        : `linear-gradient(to left, rgba(239,68,68,${intensity * 0.25}), transparent)`;
-    } else {
-      overlayBg = isLeft 
-        ? `transparent` 
-        : `linear-gradient(to left, rgba(34,197,94,${intensity * 0.25}), transparent)`;
-    }
+    overlayBg = isLeft 
+      ? `linear-gradient(to right, rgba(234,179,8,${intensity * 0.25}), transparent)` 
+      : `linear-gradient(to left, rgba(239,68,68,${intensity * 0.25}), transparent)`;
   }
 
   return (
     <div className={`relative mb-3 rounded-2xl overflow-hidden shrink-0 transition-all duration-300 ${isAnimatingOut ? 'h-0 opacity-0 mb-0 scale-95' : 'opacity-100'} ${isSelected ? `ring-2 ${accent.ring} shadow-md` : `ring-2 ring-transparent border-2 border-transparent hover:border-black/10 dark:hover:border-white/10`}`}>
-      <div className={`absolute inset-0 flex items-center px-6 text-white justify-end ${currentTab === 'notes' ? 'bg-red-500' : 'bg-green-500'}`}>
+      <div className={`absolute inset-0 flex items-center px-6 text-white ${currentTab === 'notes' ? 'justify-start bg-red-500' : 'justify-end bg-green-500'}`}>
         {currentTab === 'notes' ? <Trash2 size={24} /> : <RefreshCw size={24} />}
       </div>
       
@@ -409,9 +409,9 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
         onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}
         onMouseMove={handleMouseMove} onMouseLeave={() => setHoverRatio(null)}
         style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? 'transform 0.2s ease-out' : 'none' }}
-        className={`group relative p-4 cursor-pointer box-border h-full ${label ? label.color + ' ' + label.textColor : bgCard} ${currentTab === 'trash' ? 'opacity-70 grayscale' : ''} bg-opacity-100`}
+        className={`group relative p-4 cursor-pointer box-border h-full ${label ? label.color + ' ' + label.textColor : bgCard}`}
       >
-        {overlayBg && <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: overlayBg }} />}
+        {overlayBg && <div className="absolute inset-0 pointer-events-none rounded-2xl" style={{ backgroundImage: overlayBg }} />}
         
         <div className="absolute inset-y-0 left-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex z-10">
           {currentTab === 'notes' && <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isPinned: !x.isPinned, updatedAt: Date.now()} : x)); }} className={`p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 ${note.isPinned ? 'text-yellow-600' : 'hover:text-yellow-600'}`}><Pin size={16} fill={note.isPinned ? "currentColor" : "none"} /></button>}
@@ -424,7 +424,7 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
           )}
         </div>
 
-        <div className="relative z-0">
+        <div className={`relative z-0 ${currentTab === 'trash' ? 'opacity-50 grayscale' : ''}`}>
            {label && <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5 opacity-80">{label.name}</div>}
            <div className="flex justify-between items-start gap-2">
              <h4 className="font-bold text-base leading-tight line-clamp-1">{note.title || 'Untitled'}</h4>
@@ -437,24 +437,17 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   );
 };
 
-const DebugConsole = () => {
+const DebugConsole = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const { debugLog } = useData();
-  const [isOpen, setIsOpen] = useState(false);
   const { bgCard, textMain, border } = useTheme();
 
-  if (!isOpen) {
-    return (
-      <button onClick={() => setIsOpen(true)} className="fixed bottom-20 left-4 md:bottom-4 md:left-4 z-50 p-2 bg-red-500/20 text-red-500 rounded-full hover:bg-red-500/40">
-        <Bug size={20} />
-      </button>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
     <div className={`fixed bottom-20 left-4 md:bottom-4 md:left-4 z-50 w-80 max-h-96 flex flex-col ${bgCard} border ${border} rounded-xl shadow-2xl overflow-hidden`}>
       <div className="flex justify-between items-center p-2 border-b border-red-500/20 bg-red-500/10">
         <span className={`text-xs font-bold text-red-500 flex items-center gap-2`}><AlertCircle size={14}/> DB Diagnostik</span>
-        <button onClick={() => setIsOpen(false)} className="text-red-500"><X size={16}/></button>
+        <button onClick={onClose} className="text-red-500"><X size={16}/></button>
       </div>
       <div className={`flex-1 overflow-y-auto p-2 space-y-2 text-[10px] font-mono ${textMain} bg-black/5 dark:bg-white/5`}>
         {debugLog.length === 0 ? <p className="opacity-50">Warte auf Datenbank...</p> : null}
@@ -481,6 +474,7 @@ const MainLayout = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLabelManagerOpen, setIsLabelManagerOpen] = useState(false);
   const [isManualOpen, setIsManualOpen] = useState(false);
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -580,7 +574,7 @@ const MainLayout = () => {
 
   return (
     <div className={`h-[100dvh] w-full flex ${bgMain} ${textMain} font-sans overflow-hidden overscroll-none`}>
-      <DebugConsole />
+      <DebugConsole isOpen={isDebugOpen} onClose={() => setIsDebugOpen(false)} />
       <aside className={`hidden md:flex w-64 border-r ${border} flex-col ${bgCard}`}>
         <div className="p-6 font-bold text-xl flex items-center gap-2">
           <div className={`w-10 h-10 rounded-xl ${accent.primary} flex items-center justify-center text-white shadow-lg`}>LB</div>
@@ -716,7 +710,7 @@ const MainLayout = () => {
       </main>
 
       {!selectedNoteId && (
-        <nav className={`md:hidden fixed bottom-0 left-0 right-0 flex justify-around items-center p-3 border-t ${border} ${bgMain} z-40 pb-safe`}>
+        <nav className={`md:hidden fixed bottom-0 left-0 right-0 flex justify-around items-center pt-3 pb-6 px-3 border-t ${border} ${bgMain} z-40`}>
            <button onClick={() => setCurrentTab('notes')} className={`flex flex-col items-center gap-1 p-2 ${currentTab === 'notes' ? accent.text : textSec}`}><StickyNote size={24}/><span className="text-[10px] font-bold">{t('navNotes')}</span></button>
            <button onClick={() => setCurrentTab('trash')} className={`flex flex-col items-center gap-1 p-2 ${currentTab === 'trash' ? 'text-red-500' : textSec}`}><Archive size={24}/><span className="text-[10px] font-bold">{t('navTrash')}</span></button>
            <button onClick={() => setIsSettingsOpen(true)} className={`flex flex-col items-center gap-1 p-2 ${textSec}`}><Settings size={24}/><span className="text-[10px] font-bold">{t('settings')}</span></button>
@@ -725,7 +719,10 @@ const MainLayout = () => {
 
       <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title={t('settings')}>
         <div className="space-y-8">
-           <button onClick={() => {setIsSettingsOpen(false); setIsManualOpen(true);}} className={`w-full flex items-center justify-between p-4 rounded-2xl bg-indigo-500/10 text-indigo-500 font-bold border border-indigo-500/20`}><div className="flex items-center gap-3"><BookOpen size={20}/> {t('manual')}</div><Plus size={16}/></button>
+           <div className="flex gap-2">
+             <button onClick={() => {setIsSettingsOpen(false); setIsManualOpen(true);}} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-500/10 text-indigo-500 font-bold border border-indigo-500/20`}><BookOpen size={18}/> {t('manual')}</button>
+             <button onClick={() => {setIsSettingsOpen(false); setIsDebugOpen(true);}} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-red-500/10 text-red-500 font-bold border border-red-500/20`}><Bug size={18}/> Debug</button>
+           </div>
            <div>
              <h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('accent')}</h4>
              <div className="flex flex-wrap gap-2">
