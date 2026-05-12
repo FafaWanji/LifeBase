@@ -140,11 +140,19 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
     if (isInitialLoad.current) return;
     const save = async () => {
       setSyncStatus('syncing');
-      const { error } = await supabase.from('app_data').update({ notes, labels, updated_at: new Date().toISOString() }).eq('user_id', session.user.id);
+      const { error } = await supabase.from('app_data').upsert({ 
+        user_id: session.user.id, 
+        notes, 
+        labels, 
+        updated_at: new Date().toISOString() 
+      }, { onConflict: 'user_id' });
+      
       if (!error) {
         setSyncStatus('synced');
         setLastSaved(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
-      } else setSyncStatus('error');
+      } else {
+        setSyncStatus('error');
+      }
     };
     const timer = setTimeout(save, 1000);
     return () => clearTimeout(timer);
@@ -599,7 +607,13 @@ const MainLayout = () => {
               ref={titleRef}
               disabled={currentTab === 'trash'} 
               value={selectedNote.title} 
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); contentRef.current?.focus(); } }}
+              onKeyDown={(e) => { 
+                if (e.key === 'Enter') { 
+                  e.preventDefault(); 
+                  contentRef.current?.focus(); 
+                  setTimeout(() => contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+                } 
+              }}
               onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value, updatedAt: Date.now()} : n))} 
               className={`text-3xl md:text-5xl font-black bg-transparent outline-none placeholder:opacity-30 shrink-0 ${currentTab === 'trash' ? 'opacity-50' : (isClassic && activeLabel ? activeLabel.textColor : textMain)}`} 
               placeholder={t('titlePlaceholder')}
