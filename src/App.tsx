@@ -97,7 +97,7 @@ const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   return <ThemeContext.Provider value={{ ...themes[mode], accent: accents[accentKey], mode, setMode, designMode, setDesignMode, accentKey, setAccentKey, language, setLanguage, t: (k) => dictionary[language][k] || k }}>{children}</ThemeContext.Provider>;
 };
 
-const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ children, session }) => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [labels, setLabels] = useState<Label[]>(defaultLabels);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
@@ -109,33 +109,38 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const fetchData = async () => {
       setSyncStatus('syncing');
       try {
-        const { data, error } = await supabase.from('app_data').select('*').eq('id', 1).single();
+        const { data, error } = await supabase.from('app_data').select('*').eq('user_id', session.user.id).single();
         if (data && !error) {
           setNotes(data.notes || []);
           setLabels(data.labels || defaultLabels);
           setSyncStatus('synced');
-        } else setSyncStatus('error');
+        } else if (error && error.code === 'PGRST116') {
+          await supabase.from('app_data').insert({ user_id: session.user.id, notes: [], labels: defaultLabels });
+          setSyncStatus('synced');
+        } else {
+          setSyncStatus('error');
+        }
       } catch { setSyncStatus('error'); }
       isInitialLoad.current = false;
     };
     fetchData();
-  }, []);
+  }, [session.user.id]);
 
   useEffect(() => {
-    const channel = supabase.channel('db-sync').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data' }, (payload: any) => {
+    const channel = supabase.channel('db-sync').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_data', filter: `user_id=eq.${session.user.id}` }, (payload: any) => {
       if (payload.new) {
         setNotes(payload.new.notes);
         setLabels(payload.new.labels);
       }
     }).subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [session.user.id]);
 
   useEffect(() => {
     if (isInitialLoad.current) return;
     const save = async () => {
       setSyncStatus('syncing');
-      const { error } = await supabase.from('app_data').update({ notes, labels, updated_at: new Date().toISOString() }).eq('id', 1);
+      const { error } = await supabase.from('app_data').update({ notes, labels, updated_at: new Date().toISOString() }).eq('user_id', session.user.id);
       if (!error) {
         setSyncStatus('synced');
         setLastSaved(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
@@ -143,7 +148,7 @@ const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     };
     const timer = setTimeout(save, 1000);
     return () => clearTimeout(timer);
-  }, [notes, labels]);
+  }, [notes, labels, session.user.id]);
 
   const toggleFilter = (id: string) => setActiveFilters(prev => prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]);
   return <DataContext.Provider value={{ notes, setNotes, labels, setLabels, activeFilters, setActiveFilters, toggleFilter, syncStatus, lastSaved }}>{children}</DataContext.Provider>;
@@ -484,7 +489,7 @@ const MainLayout = () => {
     setNotes(prev => [{id, title:'', content:'', labelId:'', date:new Date().toLocaleDateString(), updatedAt: id}, ...prev]); 
     setSelectedNoteId(id); 
     setIsPreview(false);
-    setTimeout(() => titleRef.current?.focus(), 50);
+    setTimeout(() => { if (titleRef.current) titleRef.current.focus(); }, 100);
   };
 
   const handleCopy = () => {
@@ -594,14 +599,7 @@ const MainLayout = () => {
               ref={titleRef}
               disabled={currentTab === 'trash'} 
               value={selectedNote.title} 
-              onKeyDown={(e) => { 
-                if (e.key === 'Enter') { 
-                  e.preventDefault(); 
-                  contentRef.current?.focus(); 
-                  // Fixes jump on mobile
-                  setTimeout(() => contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
-                } 
-              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); contentRef.current?.focus(); } }}
               onChange={e => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, title: e.target.value, updatedAt: Date.now()} : n))} 
               className={`text-3xl md:text-5xl font-black bg-transparent outline-none placeholder:opacity-30 shrink-0 ${currentTab === 'trash' ? 'opacity-50' : (isClassic && activeLabel ? activeLabel.textColor : textMain)}`} 
               placeholder={t('titlePlaceholder')}
@@ -692,7 +690,7 @@ export default function App() {
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><RefreshCw className="animate-spin text-indigo-500" size={32}/></div>;
   return (
     <ThemeProvider>
-      {!session ? <AuthScreen /> : <DataProvider><MainLayout /></DataProvider>}
+      {!session ? <AuthScreen /> : <DataProvider session={session}><MainLayout /></DataProvider>}
     </ThemeProvider>
   );
 }
