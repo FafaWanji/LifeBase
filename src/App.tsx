@@ -109,18 +109,22 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
     const fetchData = async () => {
       setSyncStatus('syncing');
       try {
-        const { data, error } = await supabase.from('app_data').select('*').eq('user_id', session.user.id).single();
-        if (data && !error) {
+        const { data, error } = await supabase.from('app_data').select('*').eq('user_id', session.user.id).maybeSingle();
+        if (error) throw error;
+        
+        if (data) {
           setNotes(data.notes || []);
           setLabels(data.labels || defaultLabels);
           setSyncStatus('synced');
-        } else if (error && error.code === 'PGRST116') {
-          await supabase.from('app_data').insert({ user_id: session.user.id, notes: [], labels: defaultLabels });
-          setSyncStatus('synced');
         } else {
-          setSyncStatus('error');
+          const { error: insertErr } = await supabase.from('app_data').insert({ user_id: session.user.id, notes: [], labels: defaultLabels });
+          if (insertErr) throw insertErr;
+          setSyncStatus('synced');
         }
-      } catch { setSyncStatus('error'); }
+      } catch (err) { 
+        console.error('Fetch error:', err);
+        setSyncStatus('error'); 
+      }
       isInitialLoad.current = false;
     };
     fetchData();
@@ -151,6 +155,7 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
         setSyncStatus('synced');
         setLastSaved(new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}));
       } else {
+        console.error('Save error:', error);
         setSyncStatus('error');
       }
     };
