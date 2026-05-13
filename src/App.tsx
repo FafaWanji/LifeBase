@@ -119,7 +119,6 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
       
       try {
         const { data, error } = await supabase.from('app_data').select('*').eq('user_id', session.user.id).maybeSingle();
-        
         if (error) {
           addLog('Fetch Error:', error);
           throw error;
@@ -133,9 +132,7 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
         } else {
           addLog('No data found, attempting initial insert.');
           const { error: insertErr, data: insertData } = await supabase.from('app_data').insert({ 
-            user_id: session.user.id, 
-            notes: [], 
-            labels: defaultLabels 
+            user_id: session.user.id, notes: [], labels: defaultLabels 
           }).select();
           
           if (insertErr) {
@@ -172,10 +169,7 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
       addLog('Saving data...', { noteCount: notes.length, labelCount: labels.length });
       
       const { error } = await supabase.from('app_data').upsert({ 
-        user_id: session.user.id, 
-        notes, 
-        labels, 
-        updated_at: new Date().toISOString() 
+        user_id: session.user.id, notes, labels, updated_at: new Date().toISOString() 
       }, { onConflict: 'user_id' });
       
       if (!error) {
@@ -362,23 +356,31 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const touchStartX = useRef(0);
 
-  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+  const handleTouchStart = (e: React.TouchEvent) => { 
+    touchStartX.current = e.touches[0].clientX; 
+    setSwipeX(0);
+  };
+  
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartX.current) return;
     const diff = e.touches[0].clientX - touchStartX.current;
     if (currentTab === 'notes' && diff > 0) setSwipeX(diff);
     if (currentTab === 'trash') setSwipeX(diff);
   };
   
   const handleTouchEnd = () => {
-    if (currentTab === 'notes' && swipeX > 100) {
+    if (!touchStartX.current) return;
+    touchStartX.current = 0;
+    
+    if (currentTab === 'notes' && swipeX > 80) {
       setSwipeX(window.innerWidth);
       setIsAnimatingOut(true);
       setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)), 250);
-    } else if (currentTab === 'trash' && swipeX < -100) {
+    } else if (currentTab === 'trash' && swipeX < -80) {
       setSwipeX(-window.innerWidth);
       setIsAnimatingOut(true);
       setTimeout(() => setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: false} : x)), 250);
-    } else if (currentTab === 'trash' && swipeX > 100) {
+    } else if (currentTab === 'trash' && swipeX > 80) {
       setSwipeX(window.innerWidth);
       setIsAnimatingOut(true);
       setTimeout(() => setNotes(prev => prev.filter(x => x.id !== note.id)), 250);
@@ -397,13 +399,11 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   if (hoverRatio !== null && currentTab !== 'trash') {
     const isLeft = hoverRatio < 0.5;
     const intensity = isLeft ? (0.5 - hoverRatio) * 2 : (hoverRatio - 0.5) * 2;
-    overlayBg = isLeft 
-      ? `linear-gradient(to right, rgba(239,68,68,${intensity * 0.25}), transparent)` 
-      : '';
+    overlayBg = isLeft ? `linear-gradient(to right, rgba(239,68,68,${intensity * 0.25}), transparent)` : '';
   }
 
   return (
-    <div className={`relative mb-3 rounded-2xl overflow-hidden shrink-0 transition-all duration-300 ${isAnimatingOut ? 'h-0 opacity-0 mb-0 scale-95' : 'opacity-100'} ${isSelected ? `ring-2 ${accent.ring} shadow-md` : `ring-2 ring-transparent border-2 border-transparent hover:border-black/10 dark:hover:border-white/10`}`}>
+    <div className={`relative mb-3 rounded-2xl overflow-hidden shrink-0 transition-all duration-300 touch-pan-y ${isAnimatingOut ? 'h-0 opacity-0 mb-0 scale-95' : 'opacity-100'} ${isSelected ? `ring-2 ${accent.ring} shadow-md` : `ring-2 ring-transparent border-2 border-transparent hover:border-black/10 dark:hover:border-white/10`}`}>
       
       <div className={`absolute inset-0 flex items-center px-6 text-white ${swipeX > 0 ? 'justify-start bg-red-500' : 'justify-end bg-green-500'}`}>
         {swipeX > 0 ? <Trash2 size={24} /> : <RefreshCw size={24} />}
@@ -420,13 +420,13 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
         
         <div className="absolute inset-y-0 left-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex z-10">
           {currentTab === 'notes' && <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isPinned: !x.isPinned, updatedAt: Date.now()} : x)); }} className={`p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 ${note.isPinned ? 'text-yellow-600' : 'hover:text-yellow-600'}`}><Pin size={16} fill={note.isPinned ? "currentColor" : "none"} /></button>}
-          {currentTab === 'trash' && <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.filter(x => x.id !== note.id)); }} className="p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 hover:text-red-600"><Trash2 size={16} /></button>}
+          {currentTab === 'trash' && <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: false} : x)); }} className="p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 hover:text-green-600"><RefreshCw size={16} /></button>}
         </div>
         <div className="absolute inset-y-0 right-0 w-12 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex z-10">
           {currentTab === 'notes' ? (
             <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: true} : x)); }} className="p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 hover:text-red-600"><Trash2 size={16} /></button>
           ) : (
-            <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.map(x => x.id === note.id ? {...x, isDeleted: false} : x)); }} className="p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 hover:text-green-600"><RefreshCw size={16} /></button>
+            <button onClick={(e) => { e.stopPropagation(); setNotes(prev => prev.filter(x => x.id !== note.id)); }} className="p-2 rounded-full backdrop-blur-md bg-white/30 dark:bg-black/30 hover:text-red-600"><Trash2 size={16} /></button>
           )}
         </div>
 
@@ -443,13 +443,28 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   );
 };
 
+const copyFallback = (text: string) => {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+};
+
 const DebugConsole = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const { debugLog } = useData();
   const { bgCard, textMain, border } = useTheme();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(JSON.stringify(debugLog, null, 2));
+    copyFallback(JSON.stringify(debugLog, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -743,7 +758,7 @@ const MainLayout = () => {
              <button onClick={() => {
                setIsSettingsOpen(false); 
                setIsDebugOpen(true);
-               navigator.clipboard.writeText(JSON.stringify(debugLog, null, 2));
+               copyFallback(JSON.stringify(debugLog, null, 2));
              }} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-red-500/10 text-red-500 font-bold border border-red-500/20`}><Bug size={18}/> Debug</button>
            </div>
            <div>
