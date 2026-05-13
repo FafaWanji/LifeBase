@@ -119,6 +119,7 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
       
       try {
         const { data, error } = await supabase.from('app_data').select('*').eq('user_id', session.user.id).maybeSingle();
+        
         if (error) {
           addLog('Fetch Error:', error);
           throw error;
@@ -132,7 +133,9 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
         } else {
           addLog('No data found, attempting initial insert.');
           const { error: insertErr, data: insertData } = await supabase.from('app_data').insert({ 
-            user_id: session.user.id, notes: [], labels: defaultLabels 
+            user_id: session.user.id, 
+            notes: [], 
+            labels: defaultLabels 
           }).select();
           
           if (insertErr) {
@@ -169,7 +172,10 @@ const DataProvider: React.FC<{ children: ReactNode, session: any }> = ({ childre
       addLog('Saving data...', { noteCount: notes.length, labelCount: labels.length });
       
       const { error } = await supabase.from('app_data').upsert({ 
-        user_id: session.user.id, notes, labels, updated_at: new Date().toISOString() 
+        user_id: session.user.id, 
+        notes, 
+        labels, 
+        updated_at: new Date().toISOString() 
       }, { onConflict: 'user_id' });
       
       if (!error) {
@@ -696,10 +702,10 @@ const MainLayout = () => {
             </div>
 
             {currentTab === 'notes' && (
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0">
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: '', updatedAt: Date.now()} : n))} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
+              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0 w-full max-w-[100vw]">
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: '', updatedAt: Date.now()} : n))} className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
                 {labels.map(l => (
-                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id, updatedAt: Date.now()} : n))} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105 shadow-sm' : 'opacity-40 hover:opacity-100'}`}>{l.name}</button>
+                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id, updatedAt: Date.now()} : n))} className={`shrink-0 whitespace-nowrap px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105 shadow-sm' : 'opacity-40 hover:opacity-100'}`}>{l.name}</button>
                 ))}
               </div>
             )}
