@@ -397,9 +397,9 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
   if (hoverRatio !== null && currentTab !== 'trash') {
     const isLeft = hoverRatio < 0.5;
     const intensity = isLeft ? (0.5 - hoverRatio) * 2 : (hoverRatio - 0.5) * 2;
-    if (currentTab === 'notes') {
-      overlayBg = isLeft ? `linear-gradient(to right, rgba(239,68,68,${intensity * 0.25}), transparent)` : '';
-    }
+    overlayBg = isLeft 
+      ? `linear-gradient(to right, rgba(239,68,68,${intensity * 0.25}), transparent)` 
+      : '';
   }
 
   return (
@@ -446,6 +446,13 @@ const NoteCard = ({ note, label, isSelected, currentTab, onClick }: any) => {
 const DebugConsole = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const { debugLog } = useData();
   const { bgCard, textMain, border } = useTheme();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(JSON.stringify(debugLog, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (!isOpen) return null;
 
@@ -453,7 +460,10 @@ const DebugConsole = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
     <div className={`fixed bottom-20 left-4 md:bottom-4 md:left-4 z-50 w-80 max-h-96 flex flex-col ${bgCard} border ${border} rounded-xl shadow-2xl overflow-hidden`}>
       <div className="flex justify-between items-center p-2 border-b border-red-500/20 bg-red-500/10">
         <span className={`text-xs font-bold text-red-500 flex items-center gap-2`}><AlertCircle size={14}/> DB Diagnostik</span>
-        <button onClick={onClose} className="text-red-500"><X size={16}/></button>
+        <div className="flex items-center gap-3">
+          <button onClick={handleCopy} className="text-red-500 hover:text-red-400 transition-colors">{copied ? <Check size={16} /> : <Copy size={16} />}</button>
+          <button onClick={onClose} className="text-red-500 hover:text-red-400 transition-colors"><X size={16}/></button>
+        </div>
       </div>
       <div className={`flex-1 overflow-y-auto p-2 space-y-2 text-[10px] font-mono ${textMain} bg-black/5 dark:bg-white/5`}>
         {debugLog.length === 0 ? <p className="opacity-50">Warte auf Datenbank...</p> : null}
@@ -470,7 +480,7 @@ const DebugConsole = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => voi
 
 const MainLayout = () => {
   const { bgMain, bgCard, border, textMain, textSec, accent, accentKey, setAccentKey, t, bgInput, mode, setMode, designMode, setDesignMode, language, setLanguage } = useTheme();
-  const { notes, setNotes, labels, syncStatus, lastSaved, activeFilters, toggleFilter } = useData();
+  const { notes, setNotes, labels, syncStatus, lastSaved, activeFilters, toggleFilter, debugLog } = useData();
   
   const [currentTab, setCurrentTab] = useState<'notes' | 'trash'>('notes');
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
@@ -672,9 +682,9 @@ const MainLayout = () => {
 
             {currentTab === 'notes' && (
               <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide shrink-0">
-                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: '', updatedAt: Date.now()} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
+                <button onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: '', updatedAt: Date.now()} : n))} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${!selectedNote.labelId ? 'bg-black/20 dark:bg-white/20' : 'bg-black/5 opacity-40'}`}>{t('unlabeled')}</button>
                 {labels.map(l => (
-                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id, updatedAt: Date.now()} : n))} className={`px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105 shadow-sm' : 'opacity-40 hover:opacity-100'}`}>{l.name}</button>
+                  <button key={l.id} onClick={() => setNotes(prev => prev.map(n => n.id === selectedNoteId ? {...n, labelId: l.id, updatedAt: Date.now()} : n))} className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${l.color} ${l.textColor} ${selectedNote.labelId === l.id ? 'ring-2 ring-black/20 scale-105 shadow-sm' : 'opacity-40 hover:opacity-100'}`}>{l.name}</button>
                 ))}
               </div>
             )}
@@ -730,7 +740,11 @@ const MainLayout = () => {
         <div className="space-y-8">
            <div className="flex gap-2">
              <button onClick={() => {setIsSettingsOpen(false); setIsManualOpen(true);}} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-indigo-500/10 text-indigo-500 font-bold border border-indigo-500/20`}><BookOpen size={18}/> {t('manual')}</button>
-             <button onClick={() => {setIsSettingsOpen(false); setIsDebugOpen(true);}} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-red-500/10 text-red-500 font-bold border border-red-500/20`}><Bug size={18}/> Debug</button>
+             <button onClick={() => {
+               setIsSettingsOpen(false); 
+               setIsDebugOpen(true);
+               navigator.clipboard.writeText(JSON.stringify(debugLog, null, 2));
+             }} className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl bg-red-500/10 text-red-500 font-bold border border-red-500/20`}><Bug size={18}/> Debug</button>
            </div>
            <div>
              <h4 className="text-[10px] font-bold uppercase opacity-40 mb-3 tracking-widest">{t('accent')}</h4>
